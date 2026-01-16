@@ -72,16 +72,13 @@ SMTP_PORT=587
 Build the Container Image:
 
 ```Bash
-docker build -t mfg-system .
+docker build -t mfg-system-live .
 ```
 
 Execute the Report Pipeline:
 
 ```Bash
-docker run --env-file .env \
-  -v $(pwd)/reports:/app/reports \
-  -v $(pwd)/data:/app/data \
-  mfg-system
+docker run --env-file .env --network="host" -v $(pwd)/reports:/app/reports mfg-system-live
 ```
 ## 6. Data Integrity and Auditing
 To meet industrial standards, the system implements the following:
