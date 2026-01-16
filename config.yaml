@@ -1,0 +1,7 @@
+paths:
+  raw_data: "data/raw/production_data.csv"
+  excel_output: "reports/excel/report.xlsx"
+  pdf_output: "reports/pdf/summary.pdf"
+email:
+  enabled: false
+  receiver: "manager@factory.com"

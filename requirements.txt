@@ -1,0 +1,9 @@
+pandas
+openpyxl
+fpdf
+pyyaml
+schedule
+python-dotenv
+matplotlib
+seaborn
+xlsxwriter
