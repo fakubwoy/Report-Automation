@@ -8,22 +8,43 @@ from email.message import EmailMessage
 
 def generate_visuals(df):
     sns.set_theme(style="whitegrid")
+    chart_paths = []
     
-    # Production Chart
-    plt.figure(figsize=(8, 4))
+    # 1. Production Chart - Legend Fixed (Outside)
+    plt.figure(figsize=(10, 5))
     sns.barplot(data=df, x='Shift', y='Units Produced', hue='Machine ID')
     plt.title("Production by Shift")
-    plt.savefig("reports/chart_prod.png")
+    plt.legend(title='Machine ID', bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0.)
+    plt.tight_layout()
+    path_prod = "reports/chart_prod.png"
+    plt.savefig(path_prod)
     plt.close()
+    chart_paths.append(path_prod)
 
-    # Downtime Chart
-    plt.figure(figsize=(8, 4))
-    sns.lineplot(data=df, x='Date', y='Downtime (minutes)', marker='o', color='red')
-    plt.title("Downtime Trend")
-    plt.savefig("reports/chart_down.png")
+    # 2. NEW/OLD: Downtime Trend Line
+    # We use 'id' or 'index' on the X-axis to show sequence if Date is the same
+    plt.figure(figsize=(10, 4))
+    sns.lineplot(data=df, x=df.index, y='Downtime (minutes)', marker='o', color='red', label='Downtime Trend')
+    plt.title("Downtime Sequence Trend")
+    plt.xlabel("Entry Sequence (Today)")
+    plt.ylabel("Minutes")
+    plt.tight_layout()
+    path_trend = "reports/chart_down_trend.png"
+    plt.savefig(path_trend)
     plt.close()
+    chart_paths.append(path_trend)
+
+    # 3. Downtime by Machine (Variation)
+    plt.figure(figsize=(10, 4))
+    sns.barplot(data=df, x='Machine ID', y='Downtime (minutes)', palette='Reds_d')
+    plt.title("Downtime Distribution by Machine")
+    plt.tight_layout()
+    path_var = "reports/chart_down_var.png"
+    plt.savefig(path_var)
+    plt.close()
+    chart_paths.append(path_var)
     
-    return ["reports/chart_prod.png", "reports/chart_down.png"]
+    return chart_paths
 
 def generate_pdf(summary, charts, output_path):
     pdf = FPDF()
@@ -47,19 +68,23 @@ def generate_pdf(summary, charts, output_path):
         pdf.cell(60, 8, f"{k}:", border=1)
         pdf.cell(60, 8, f"{v}", border=1, ln=True)
         
-    # Add Charts
+    # Add all 3 Charts
     for chart in charts:
-        pdf.ln(5)
-        pdf.image(chart, x=15, w=170)
+        pdf.ln(8)
+        # Check if we need a new page for the last chart to avoid cutoff
+        if pdf.get_y() > 200: 
+            pdf.add_page()
+        pdf.image(chart, x=10, w=190)
         
     pdf.output(output_path)
 
 def send_email(file_path):
+    # Standard email logic
     msg = EmailMessage()
     msg['Subject'] = f"Manufacturing Report: {pd.Timestamp.now().strftime('%Y-%m-%d')}"
     msg['From'] = os.getenv('EMAIL_SENDER')
     msg['To'] = os.getenv('EMAIL_RECEIVER')
-    msg.set_content("Automated report attached.")
+    msg.set_content("Automated report attached containing production and downtime trends.")
 
     with open(file_path, 'rb') as f:
         msg.add_attachment(f.read(), maintype='application', subtype='pdf', filename="Report.pdf")

@@ -7,3 +7,5 @@ python-dotenv
 matplotlib
 seaborn
 xlsxwriter
+psycopg[binary]
+sqlalchemy
