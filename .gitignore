@@ -1,3 +1,4 @@
 .env
 data/processed
-reports/
+reports/excel/*
+reports/pdf/*
