@@ -1,0 +1,62 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: mfg_postgres
+    environment:
+      POSTGRES_DB: manufacturing
+      POSTGRES_USER: mfg_user
+      POSTGRES_PASSWORD: mfg_pass123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - mfg_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mfg_user -d manufacturing"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  plc-simulator:
+    build: .
+    container_name: mfg_plc_sim
+    command: python src/opcua_simulator.py
+    networks:
+      - mfg_network
+    ports:
+      - "4840:4840"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import socket; sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM); result = sock.connect_ex((\"127.0.0.1\", 4840)); sock.close(); exit(0 if result == 0 else 1)'"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  reporting-app:
+    build: .
+    container_name: mfg_reporting_pipeline
+    depends_on:
+      plc-simulator:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      - OPCUA_SERVER_URL=opc.tcp://plc-simulator:4840/freeopcua/server/
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=manufacturing
+      - DB_USER=mfg_user
+      - DB_PASSWORD=mfg_pass123
+    volumes:
+      - ./reports:/app/reports
+      - ./data/processed:/app/data/processed
+    networks:
+      - mfg_network
+    command: python src/scheduler.py 
+
+networks:
+  mfg_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
