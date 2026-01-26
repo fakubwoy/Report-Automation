@@ -31,9 +31,9 @@ services:
       retries: 10
       start_period: 10s
 
-  reporting-app:
+  api-server:
     build: .
-    container_name: mfg_reporting_pipeline
+    container_name: mfg_api_server
     depends_on:
       plc-simulator:
         condition: service_healthy
@@ -47,12 +47,51 @@ services:
       - DB_NAME=manufacturing
       - DB_USER=mfg_user
       - DB_PASSWORD=mfg_pass123
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./reports:/app/reports
+      - ./dashboard:/app/dashboard
+    networks:
+      - mfg_network
+    command: uvicorn src.api_server:app --host 0.0.0.0 --port 8000 --reload
+
+  reporting-app:
+    build: .
+    container_name: mfg_reporting_pipeline
+    depends_on:
+      plc-simulator:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      api-server:
+        condition: service_started
+    env_file: .env
+    environment:
+      - OPCUA_SERVER_URL=opc.tcp://plc-simulator:4840/freeopcua/server/
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=manufacturing
+      - DB_USER=mfg_user
+      - DB_PASSWORD=mfg_pass123
     volumes:
       - ./reports:/app/reports
       - ./data/processed:/app/data/processed
     networks:
       - mfg_network
-    command: python src/scheduler.py 
+    command: python src/scheduler.py
+
+  dashboard:
+    image: nginx:alpine
+    container_name: mfg_dashboard
+    depends_on:
+      - api-server
+    ports:
+      - "8080:80"
+    volumes:
+      - ./dashboard/dashboard.html:/usr/share/nginx/html/index.html:ro
+    networks:
+      - mfg_network
 
 networks:
   mfg_network:

@@ -10,3 +10,7 @@ xlsxwriter
 psycopg[binary]
 sqlalchemy
 asyncua
+fastapi
+uvicorn[standard]
+websockets
+pydantic
