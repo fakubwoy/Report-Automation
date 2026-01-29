@@ -13,6 +13,11 @@ from typing import List, Optional
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 
+# Import the new ML Engine
+# Note: We import inside the function or ensuring path is correct, 
+# assuming src package is available
+from src.ml_engine import perform_ml_analysis
+
 logging.basicConfig(level=logging.INFO)
 
 # Database setup
@@ -162,7 +167,8 @@ async def root():
             "machines": "/api/machines",
             "reports": "/api/reports/latest",
             "websocket": "/ws",
-            "websocket_status": "/api/websocket/status"
+            "websocket_status": "/api/websocket/status",
+            "ml_forecast": "/api/ml/forecast"
         }
     }
 
@@ -263,6 +269,47 @@ async def get_machine_stats(days: int = 7, db: Session = Depends(get_db)):
         return df.to_dict('records')
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# ---- NEW ML ENDPOINT ----
+@app.get("/api/ml/forecast")
+async def get_ml_forecast(days: int = 30):
+    """
+    Trains a lightweight model on recent data and predicts 
+    downtime for the next shift.
+    """
+    try:
+        # Fetch data for ML
+        query = f"""
+            SELECT units_produced as "Units Produced", 
+                   defective_units as "Defective Units", 
+                   downtime_min as "Downtime (minutes)"
+            FROM live_production
+            WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'
+        """
+        df = pd.read_sql_query(query, engine)
+        
+        predicted_downtime, score, _ = perform_ml_analysis(df)
+        
+        risk_level = "Low"
+        if predicted_downtime > 20: risk_level = "Medium"
+        if predicted_downtime > 40: risk_level = "High"
+
+        return {
+            "predicted_downtime_next_shift": predicted_downtime,
+            "model_confidence_score": score,
+            "risk_assessment": risk_level,
+            "message": "Prediction based on linear regression of units vs defects."
+        }
+    except Exception as e:
+        # Fallback if DB is empty or error occurs
+        logging.error(f"ML Forecast Error: {e}")
+        return {
+            "predicted_downtime_next_shift": 0,
+            "model_confidence_score": 0,
+            "risk_assessment": "Unknown",
+            "message": "Insufficient data."
+        }
+# -------------------------
 
 @app.get("/api/reports/latest")
 async def get_latest_report():

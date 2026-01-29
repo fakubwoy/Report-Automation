@@ -4,3 +4,5 @@ reports/excel/*
 reports/pdf/*
 reports/*.png
 reports/*.txt
+src/__pycache__
+__pycache__

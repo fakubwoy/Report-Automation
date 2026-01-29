@@ -85,19 +85,25 @@ def generate_pdf(summary, charts, output_path):
     pdf.ln(25)
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, f"Performance Summary - {summary['Report Date']}", ln=True)
+    pdf.cell(0, 10, f"Performance Summary - {summary.get('Report Date', 'N/A')}", ln=True)
     
     pdf.set_font("Arial", '', 10)
     for k, v in summary.items():
         pdf.cell(60, 8, f"{k}:", border=1)
         pdf.cell(60, 8, f"{v}", border=1, ln=True)
         
-    # Add all 3 Charts
+    # Add Charts (including ML if present)
     for chart in charts:
         pdf.ln(8)
         # Check if we need a new page for the last chart to avoid cutoff
         if pdf.get_y() > 200: 
             pdf.add_page()
+        
+        # Add a title for the ML chart specifically if it's the 4th one
+        if "ml_forecast" in chart:
+             pdf.set_font("Arial", 'B', 11)
+             pdf.cell(0, 10, "Predictive Maintenance Analysis (ML)", ln=True)
+             
         pdf.image(chart, x=10, w=190)
         
     pdf.output(output_path)

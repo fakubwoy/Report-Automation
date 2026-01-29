@@ -50,6 +50,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      # KEY CHANGE: Mount current directory to /app for live code reloading
+      - .:/app
       - ./reports:/app/reports
       - ./dashboard:/app/dashboard
     networks:
@@ -75,6 +77,8 @@ services:
       - DB_USER=mfg_user
       - DB_PASSWORD=mfg_pass123
     volumes:
+      # KEY CHANGE: Mount current directory to /app
+      - .:/app
       - ./reports:/app/reports
       - ./data/processed:/app/data/processed
     networks:
