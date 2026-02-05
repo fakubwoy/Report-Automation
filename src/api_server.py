@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy import create_engine, text
@@ -13,9 +13,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 
-# Import the new ML Engine
-# Note: We import inside the function or ensuring path is correct, 
-# assuming src package is available
+# Import the ML Engine
 from src.ml_engine import perform_ml_analysis
 
 logging.basicConfig(level=logging.INFO)
@@ -56,13 +54,11 @@ class ConnectionManager:
                 logging.error(f"Error broadcasting to client: {e}")
                 disconnected.append(connection)
         
-        # Remove disconnected clients
         for conn in disconnected:
             self.disconnect(conn)
 
 manager = ConnectionManager()
 
-# Helper function to serialize data for JSON
 def serialize_for_json(obj):
     """Convert date/datetime objects to ISO strings for JSON serialization"""
     if isinstance(obj, (date, datetime)):
@@ -74,47 +70,69 @@ def serialize_for_json(obj):
     else:
         return obj
 
+# Function to save live data to DB safely
+def save_live_data_to_db(live_data):
+    try:
+        if not live_data:
+            return
+            
+        # Create a DataFrame
+        df = pd.DataFrame(live_data)
+        
+        # We need to ensure the columns match the DB schema
+        # The ingestion typically returns: machine_id, units_produced, defective_units, downtime_min, production_date, shift
+        
+        # Use a separate engine connection to avoid threading issues with the global session
+        with engine.connect() as conn:
+            df.to_sql('live_production', conn, if_exists='append', index=False)
+            conn.commit()
+            
+        logging.debug(f"Persisted {len(df)} live records to database.")
+    except Exception as e:
+        logging.error(f"Failed to persist live data to DB: {e}")
+
 # Background task for streaming live data
 async def stream_live_data():
-    """Background task that continuously fetches and broadcasts live data"""
+    """Background task that fetches, broadcasts, AND persists live data"""
     from src.ingestion import get_all_opcua_data
     
     logging.info("Starting live data stream background task...")
     
     while True:
         try:
-            if len(manager.active_connections) > 0:
-                live_data = await get_all_opcua_data(max_retries=2, retry_delay=1)
-                if live_data:
-                    # Serialize the data to ensure JSON compatibility
+            # 1. Fetch Data
+            # We fetch even if no clients are connected so we can record history to DB
+            live_data = await get_all_opcua_data(max_retries=2, retry_delay=1)
+            
+            if live_data:
+                # 2. Persist to DB (CRITICAL FIX: This ensures charts update without restart)
+                # Run in a separate thread to not block the async event loop
+                await asyncio.to_thread(save_live_data_to_db, live_data)
+
+                # 3. Broadcast to WebSocket Clients
+                if len(manager.active_connections) > 0:
                     serialized_data = serialize_for_json(live_data)
-                    
-                    # Broadcast to all connected WebSocket clients
                     await manager.broadcast({
                         "type": "live_update",
                         "timestamp": datetime.now().isoformat(),
                         "data": serialized_data
                     })
-                    logging.debug(f"Broadcast live data to {len(manager.active_connections)} clients")
+                    
             await asyncio.sleep(5)  # Update every 5 seconds
         except Exception as e:
             logging.error(f"Error in live data stream: {e}", exc_info=True)
             await asyncio.sleep(5)
 
-# Lifespan context manager for startup/shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     logging.info("Starting FastAPI application...")
     task = asyncio.create_task(stream_live_data())
     yield
-    # Shutdown
     logging.info("Shutting down FastAPI application...")
     task.cancel()
 
-app = FastAPI(title="Manufacturing Analytics API", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="Manufacturing Analytics API", version="2.1.0", lifespan=lifespan)
 
-# CORS middleware for frontend access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -123,7 +141,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Pydantic models for API
 class ProductionRecord(BaseModel):
     production_date: str
     machine_id: str
@@ -145,7 +162,6 @@ class MachineStats(BaseModel):
     defective_units: float
     downtime_minutes: float
 
-# Dependency for database session
 def get_db():
     db = SessionLocal()
     try:
@@ -153,28 +169,18 @@ def get_db():
     finally:
         db.close()
 
-# REST API Endpoints
+# --- ROUTES ---
 
 @app.get("/")
 async def root():
     return {
         "service": "Manufacturing Analytics API",
-        "version": "2.0.0",
         "status": "operational",
-        "endpoints": {
-            "production_data": "/api/production",
-            "kpis": "/api/kpis",
-            "machines": "/api/machines",
-            "reports": "/api/reports/latest",
-            "websocket": "/ws",
-            "websocket_status": "/api/websocket/status",
-            "ml_forecast": "/api/ml/forecast"
-        }
+        "endpoints": ["/api/production", "/api/kpis", "/api/machines", "/ws"]
     }
 
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint"""
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -182,47 +188,23 @@ async def health_check():
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database unavailable: {str(e)}")
 
-@app.get("/api/websocket/status")
-async def websocket_status():
-    """Check WebSocket connection status"""
-    return {
-        "websocket_endpoint": "/ws",
-        "active_connections": len(manager.active_connections),
-        "status": "operational"
-    }
-
 @app.get("/api/production", response_model=List[ProductionRecord])
-async def get_production_data(
-    days: int = 7,
-    machine_id: Optional[str] = None,
-    db: Session = Depends(get_db)
-):
-    """Get production data with optional filtering"""
+async def get_production_data(days: int = 7, machine_id: Optional[str] = None):
     try:
-        query = """
-            SELECT production_date, machine_id, units_produced, 
-                   defective_units, downtime_min, shift
-            FROM live_production
-            WHERE production_date >= CURRENT_DATE - INTERVAL '%s days'
-        """ % days
-        
+        query = f"SELECT * FROM live_production WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'"
         if machine_id:
             query += f" AND machine_id = '{machine_id}'"
-        
         query += " ORDER BY production_date DESC, machine_id"
         
         df = pd.read_sql_query(query, engine)
-        # Convert date to string for JSON serialization
         if 'production_date' in df.columns:
             df['production_date'] = df['production_date'].astype(str)
-        
         return df.to_dict('records')
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/kpis", response_model=KPIResponse)
-async def get_kpis(days: int = 7, db: Session = Depends(get_db)):
-    """Get calculated KPIs"""
+async def get_kpis(days: int = 7):
     try:
         query = f"""
             SELECT SUM(units_produced) as total_units,
@@ -231,13 +213,11 @@ async def get_kpis(days: int = 7, db: Session = Depends(get_db)):
             FROM live_production
             WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'
         """
-        
         df = pd.read_sql_query(query, engine)
         
         total_units = int(df['total_units'].iloc[0]) if df['total_units'].iloc[0] else 0
         total_defects = int(df['total_defects'].iloc[0]) if df['total_defects'].iloc[0] else 0
         avg_downtime = float(df['avg_downtime'].iloc[0]) if df['avg_downtime'].iloc[0] else 0
-        
         yield_pct = ((total_units - total_defects) / total_units * 100) if total_units > 0 else 0
         
         return {
@@ -251,8 +231,7 @@ async def get_kpis(days: int = 7, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/machines", response_model=List[MachineStats])
-async def get_machine_stats(days: int = 7, db: Session = Depends(get_db)):
-    """Get aggregated statistics per machine"""
+async def get_machine_stats(days: int = 7):
     try:
         query = f"""
             SELECT machine_id,
@@ -264,21 +243,14 @@ async def get_machine_stats(days: int = 7, db: Session = Depends(get_db)):
             GROUP BY machine_id
             ORDER BY machine_id
         """
-        
         df = pd.read_sql_query(query, engine)
         return df.to_dict('records')
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ---- NEW ML ENDPOINT ----
 @app.get("/api/ml/forecast")
 async def get_ml_forecast(days: int = 30):
-    """
-    Trains a lightweight model on recent data and predicts 
-    downtime for the next shift.
-    """
     try:
-        # Fetch data for ML
         query = f"""
             SELECT units_produced as "Units Produced", 
                    defective_units as "Defective Units", 
@@ -287,7 +259,6 @@ async def get_ml_forecast(days: int = 30):
             WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'
         """
         df = pd.read_sql_query(query, engine)
-        
         predicted_downtime, score, _ = perform_ml_analysis(df)
         
         risk_level = "Low"
@@ -298,23 +269,42 @@ async def get_ml_forecast(days: int = 30):
             "predicted_downtime_next_shift": predicted_downtime,
             "model_confidence_score": score,
             "risk_assessment": risk_level,
-            "message": "Prediction based on linear regression of units vs defects."
+            "message": "Prediction based on linear regression."
         }
     except Exception as e:
-        # Fallback if DB is empty or error occurs
         logging.error(f"ML Forecast Error: {e}")
-        return {
-            "predicted_downtime_next_shift": 0,
-            "model_confidence_score": 0,
-            "risk_assessment": "Unknown",
-            "message": "Insufficient data."
-        }
-# -------------------------
+        return {"predicted_downtime_next_shift": 0, "model_confidence_score": 0, "risk_assessment": "Unknown"}
+
+# --- REPORTING ENDPOINTS ---
+
+@app.post("/api/reports/generate")
+async def generate_report(background_tasks: BackgroundTasks):
+    """Trigger the report generation pipeline manually"""
+    try:
+        # Deferred import to avoid circular dependency
+        from main import run_pipeline
+        # Run in background to not block the response
+        background_tasks.add_task(run_pipeline)
+        return {"status": "success", "message": "Report generation started"}
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Reporting module not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/reports/latest")
 async def get_latest_report():
-    """Download the latest PDF report"""
+    """Download the latest PDF report, generating it if missing"""
     report_path = "reports/pdf/Report.pdf"
+    
+    # If report doesn't exist, try to generate it synchronously
+    if not os.path.exists(report_path):
+        try:
+            from main import run_pipeline
+            logging.info("Report missing, generating new one...")
+            run_pipeline()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to generate report: {e}")
+
     if os.path.exists(report_path):
         return FileResponse(
             report_path,
@@ -324,70 +314,31 @@ async def get_latest_report():
     else:
         raise HTTPException(status_code=404, detail="No report available")
 
-@app.post("/api/production")
-async def create_production_record(record: ProductionRecord, db: Session = Depends(get_db)):
-    """Create a new production record (for third-party integrations)"""
-    try:
-        query = text("""
-            INSERT INTO live_production 
-            (production_date, machine_id, units_produced, defective_units, downtime_min, shift)
-            VALUES (:prod_date, :machine_id, :units, :defects, :downtime, :shift)
-        """)
-        
-        with engine.connect() as conn:
-            conn.execute(query, {
-                "prod_date": record.production_date,
-                "machine_id": record.machine_id,
-                "units": record.units_produced,
-                "defects": record.defective_units,
-                "downtime": record.downtime_min,
-                "shift": record.shift
-            })
-            conn.commit()
-        
-        return {"status": "success", "message": "Record created"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/api/machines/live")
 async def get_live_machine_data():
-    """Get current live data from OPC-UA"""
     try:
         from src.ingestion import get_all_opcua_data
         live_data = await get_all_opcua_data(max_retries=2, retry_delay=1)
-        
-        # Serialize data for JSON
         serialized_data = serialize_for_json(live_data)
-        
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "machines": serialized_data
-        }
+        return {"timestamp": datetime.now().isoformat(), "machines": serialized_data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# WebSocket endpoint for real-time updates
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
-        # Send initial connection confirmation
         await websocket.send_json({"type": "connected", "message": "WebSocket connected successfully"})
-        
         while True:
-            # Keep connection alive by receiving messages
             try:
                 data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-                # Echo back for heartbeat
                 await websocket.send_json({"type": "heartbeat", "status": "connected"})
             except asyncio.TimeoutError:
-                # Send ping to keep connection alive
                 await websocket.send_json({"type": "ping"})
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-        logging.info("Client disconnected from WebSocket")
     except Exception as e:
-        logging.error(f"WebSocket error: {e}", exc_info=True)
+        logging.error(f"WebSocket error: {e}")
         try:
             manager.disconnect(websocket)
         except:
