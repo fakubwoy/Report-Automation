@@ -13,8 +13,20 @@ from typing import List, Optional
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 
-# Import the ML Engine
-from src.ml_engine import perform_ml_analysis
+# Import the ML Engine (both versions for backward compatibility)
+try:
+    from src.ml_engine_advanced import perform_advanced_ml_analysis, perform_ml_analysis
+    from src.ai_insights import get_comprehensive_ai_insights
+    ADVANCED_ML_AVAILABLE = True
+    logging.info("Advanced ML and AI engines loaded successfully")
+except ImportError:
+    try:
+        from src.ml_engine import perform_ml_analysis
+        ADVANCED_ML_AVAILABLE = False
+        logging.warning("Advanced ML engine not available, using basic version")
+    except ImportError:
+        logging.error("No ML engine available")
+        ADVANCED_ML_AVAILABLE = False
 
 logging.basicConfig(level=logging.INFO)
 
@@ -250,6 +262,7 @@ async def get_machine_stats(days: int = 7):
 
 @app.get("/api/ml/forecast")
 async def get_ml_forecast(days: int = 30):
+    """Advanced ML forecast with ensemble predictions"""
     try:
         query = f"""
             SELECT units_produced as "Units Produced", 
@@ -259,21 +272,183 @@ async def get_ml_forecast(days: int = 30):
             WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'
         """
         df = pd.read_sql_query(query, engine)
-        predicted_downtime, score, _ = perform_ml_analysis(df)
         
-        risk_level = "Low"
-        if predicted_downtime > 20: risk_level = "Medium"
-        if predicted_downtime > 40: risk_level = "High"
+        if ADVANCED_ML_AVAILABLE:
+            # Use advanced ML engine
+            prediction, confidence, insights, _ = perform_advanced_ml_analysis(df)
+            
+            return {
+                "predicted_downtime_next_shift": prediction,
+                "model_confidence_score": confidence,
+                "risk_assessment": insights.get('risk_level', 'Unknown'),
+                "anomalies_detected": insights.get('anomalies_detected', 0),
+                "feature_importance": insights.get('feature_importance', {}),
+                "recommendations": insights.get('recommendations', []),
+                "model_type": "Advanced Ensemble (RF + XGBoost)",
+                "message": "Prediction based on ensemble machine learning models."
+            }
+        else:
+            # Fallback to basic ML
+            predicted_downtime, score, _ = perform_ml_analysis(df)
+            
+            risk_level = "Low"
+            if predicted_downtime > 20: risk_level = "Medium"
+            if predicted_downtime > 40: risk_level = "High"
 
-        return {
-            "predicted_downtime_next_shift": predicted_downtime,
-            "model_confidence_score": score,
-            "risk_assessment": risk_level,
-            "message": "Prediction based on linear regression."
-        }
+            return {
+                "predicted_downtime_next_shift": predicted_downtime,
+                "model_confidence_score": score,
+                "risk_assessment": risk_level,
+                "model_type": "Basic Linear Regression",
+                "message": "Prediction based on linear regression."
+            }
     except Exception as e:
-        logging.error(f"ML Forecast Error: {e}")
-        return {"predicted_downtime_next_shift": 0, "model_confidence_score": 0, "risk_assessment": "Unknown"}
+        logging.error(f"ML Forecast Error: {e}", exc_info=True)
+        return {
+            "predicted_downtime_next_shift": 0, 
+            "model_confidence_score": 0, 
+            "risk_assessment": "Unknown",
+            "error": str(e)
+        }
+
+@app.get("/api/ai/insights")
+async def get_ai_insights_endpoint(days: int = 7):
+    """
+    NEW: Get comprehensive AI-powered strategic insights
+    """
+    try:
+        if not ADVANCED_ML_AVAILABLE:
+            return {
+                "error": "Advanced AI features not available",
+                "message": "Install required packages: aiohttp, xgboost"
+            }
+        
+        # Get production data
+        query = f"""
+            SELECT units_produced as "Units Produced", 
+                   defective_units as "Defective Units", 
+                   downtime_min as "Downtime (minutes)",
+                   machine_id, production_date, shift
+            FROM live_production
+            WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'
+        """
+        df = pd.read_sql_query(query, engine)
+        
+        # Get KPIs
+        kpi_query = f"""
+            SELECT SUM(units_produced) as total_units,
+                   SUM(defective_units) as total_defects,
+                   AVG(downtime_min) as avg_downtime
+            FROM live_production
+            WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'
+        """
+        kpi_df = pd.read_sql_query(kpi_query, engine)
+        
+        total_units = int(kpi_df['total_units'].iloc[0]) if kpi_df['total_units'].iloc[0] else 0
+        total_defects = int(kpi_df['total_defects'].iloc[0]) if kpi_df['total_defects'].iloc[0] else 0
+        yield_pct = ((total_units - total_defects) / total_units * 100) if total_units > 0 else 0
+        
+        kpi_summary = {
+            'total_units': total_units,
+            'total_defects': total_defects,
+            'yield_percentage': round(yield_pct, 2),
+            'avg_downtime': float(kpi_df['avg_downtime'].iloc[0]) if kpi_df['avg_downtime'].iloc[0] else 0
+        }
+        
+        # Get machine stats
+        machine_query = f"""
+            SELECT machine_id,
+                   SUM(units_produced) as units_produced,
+                   SUM(defective_units) as defective_units,
+                   SUM(downtime_min) as downtime_minutes
+            FROM live_production
+            WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'
+            GROUP BY machine_id
+        """
+        machine_df = pd.read_sql_query(machine_query, engine)
+        machine_stats = machine_df.to_dict('records')
+        
+        # Perform ML analysis
+        prediction, confidence, ml_insights, _ = perform_advanced_ml_analysis(df)
+        
+        # Get AI insights
+        ai_insights = await get_comprehensive_ai_insights(
+            ml_insights, 
+            df.to_dict('records')[:10],  # Send sample data
+            kpi_summary,
+            machine_stats
+        )
+        
+        return {
+            "ml_analysis": {
+                "prediction": prediction,
+                "confidence": confidence,
+                "insights": ml_insights
+            },
+            "ai_insights": ai_insights,
+            "kpis": kpi_summary,
+            "generated_at": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logging.error(f"AI Insights Error: {e}", exc_info=True)
+        return {
+            "error": str(e),
+            "message": "Failed to generate AI insights"
+        }
+
+@app.get("/api/ai/maintenance-plan")
+async def get_maintenance_plan(days: int = 7):
+    """
+    NEW: Get AI-generated maintenance schedule
+    """
+    try:
+        if not ADVANCED_ML_AVAILABLE:
+            return {"error": "AI features not available"}
+        
+        from src.ai_insights import AIInsightsEngine
+        
+        # Get ML insights
+        query = f"""
+            SELECT units_produced as "Units Produced", 
+                   defective_units as "Defective Units", 
+                   downtime_min as "Downtime (minutes)"
+            FROM live_production
+            WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'
+        """
+        df = pd.read_sql_query(query, engine)
+        
+        prediction, confidence, ml_insights, _ = perform_advanced_ml_analysis(df)
+        
+        # Get machine stats
+        machine_query = f"""
+            SELECT machine_id,
+                   SUM(units_produced) as units_produced,
+                   SUM(defective_units) as defective_units,
+                   SUM(downtime_min) as downtime_minutes
+            FROM live_production
+            WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'
+            GROUP BY machine_id
+        """
+        machine_df = pd.read_sql_query(machine_query, engine)
+        machine_stats = machine_df.to_dict('records')
+        
+        # Generate maintenance plan
+        ai_engine = AIInsightsEngine()
+        maintenance_plan = await ai_engine.generate_maintenance_plan(
+            ml_insights, machine_stats
+        )
+        
+        return {
+            "maintenance_plan": maintenance_plan,
+            "ml_prediction": prediction,
+            "risk_level": ml_insights.get('risk_level', 'Unknown'),
+            "generated_at": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logging.error(f"Maintenance Plan Error: {e}", exc_info=True)
+        return {"error": str(e)}
 
 # --- REPORTING ENDPOINTS ---
 

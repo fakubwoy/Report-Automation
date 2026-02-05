@@ -4,17 +4,29 @@ from src.ingestion import load_live_data
 from src.validation import validate_data
 from src.kpi_engine import calculate_kpis
 from src.report_generator import generate_visuals, generate_pdf, send_email
-from src.ml_engine import perform_ml_analysis
+import asyncio
+
+# Try to use advanced ML engine, fallback to basic if not available
+try:
+    from src.ml_engine_advanced import perform_advanced_ml_analysis
+    from src.ai_insights import get_comprehensive_ai_insights
+    ADVANCED_ML_AVAILABLE = True
+    logging.info("Advanced ML and AI engines loaded")
+except ImportError:
+    from src.ml_engine import perform_ml_analysis
+    ADVANCED_ML_AVAILABLE = False
+    logging.warning("Using basic ML engine - advanced features unavailable")
 
 # Ensure logging is initialized at the top level
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
-def run_pipeline():
+async def run_pipeline_async():
+    """Async version for AI integration"""
     try:
         # 1. Ingestion (Historical + Live)
         df, raw_live_data, engine = load_live_data()
         
-        # 2. Archive to DB (using the engine from ingestion)
+        # 2. Archive to DB
         if raw_live_data:
             try:
                 live_df_to_save = pd.DataFrame(raw_live_data)
@@ -29,35 +41,88 @@ def run_pipeline():
         # 4. KPI Calculations
         summary, machine_stats = calculate_kpis(df)
         
-        # 5. ML Analysis (New Step)
-        logging.info("Running ML Predictive Analysis...")
-        # Prepare dataframe columns to match what ML engine expects (Mapping fallback if names differ)
-        ml_df = df.copy() 
-        # Ensure column names match what your ingestion/validation produces. 
-        # Typically they are 'Units Produced', 'Defective Units', 'Downtime (minutes)' based on previous files.
+        # 5. Advanced ML Analysis
+        logging.info("Running Advanced ML & AI Analysis...")
+        charts = []
         
-        pred_downtime, pred_score, ml_chart_path = perform_ml_analysis(ml_df)
-        
-        # Add ML stats to summary for the report
-        summary['ML Predicted Downtime'] = f"{pred_downtime} min"
-        summary['ML Confidence'] = f"{pred_score}"
+        if ADVANCED_ML_AVAILABLE:
+            # Advanced ML with multiple models
+            pred_downtime, pred_score, ml_insights, ml_chart_path = perform_advanced_ml_analysis(df)
+            
+            # Add ML stats to summary
+            summary['ML Predicted Downtime'] = f"{pred_downtime:.1f} min"
+            summary['ML Confidence'] = f"{pred_score*100:.1f}%"
+            summary['Risk Level'] = ml_insights.get('risk_level', 'Unknown')
+            summary['Anomalies Detected'] = ml_insights.get('anomalies_detected', 0)
+            
+            # Get AI-powered insights
+            try:
+                kpi_summary = {
+                    'total_units': summary.get('Total Units', 0),
+                    'total_defects': summary.get('Total Defects', 0),
+                    'yield_percentage': summary.get('Overall Yield %', 0),
+                    'avg_downtime': summary.get('Avg Downtime (min)', 0)
+                }
+                
+                ai_insights = await get_comprehensive_ai_insights(
+                    ml_insights,
+                    df.to_dict('records')[:20],  # Sample data
+                    kpi_summary,
+                    machine_stats
+                )
+                
+                # Add AI insights to summary
+                if ai_insights and 'strategic_insights' in ai_insights:
+                    summary['AI Analysis'] = "Generated (see report)"
+                    
+                    # Save AI insights to file for the report
+                    with open('reports/ai_insights.txt', 'w') as f:
+                        f.write("=== AI STRATEGIC INSIGHTS ===\n\n")
+                        f.write(ai_insights['strategic_insights'].get('full_analysis', 'N/A'))
+                        f.write("\n\n=== AI MAINTENANCE PLAN ===\n\n")
+                        f.write(str(ai_insights.get('maintenance_plan', 'N/A')))
+                        f.write("\n\n=== AI QUALITY INSIGHTS ===\n\n")
+                        f.write(str(ai_insights.get('quality_insights', 'N/A')))
+                    
+                    logging.info("AI insights saved to reports/ai_insights.txt")
+                    
+            except Exception as ai_e:
+                logging.warning(f"AI insights generation failed: {ai_e}")
+            
+            # Generate visualizations
+            charts = generate_visuals(df)
+            if ml_chart_path:
+                charts.append(ml_chart_path)
+                
+        else:
+            # Basic ML fallback
+            from src.ml_engine import perform_ml_analysis
+            pred_downtime, pred_score, ml_chart_path = perform_ml_analysis(df)
+            
+            summary['ML Predicted Downtime'] = f"{pred_downtime:.1f} min"
+            summary['ML Confidence'] = f"{pred_score:.2f}"
+            
+            charts = generate_visuals(df)
+            if ml_chart_path:
+                charts.append(ml_chart_path)
 
-        # 6. Reporting
-        charts = generate_visuals(df)
-        
-        # Add ML chart if generated
-        if ml_chart_path:
-            charts.append(ml_chart_path)
-
+        # 6. Generate PDF Report
         generate_pdf(summary, charts, "reports/pdf/Report.pdf")
         
         # 7. Email
         send_email("reports/pdf/Report.pdf")
-        logging.info("Pipeline execution complete.")
+        logging.info("✅ Pipeline execution complete with ML & AI insights.")
 
     except Exception as e:
-        # Fixed: logging is now defined
         logging.error(f"Pipeline Failed: {e}", exc_info=True)
+
+def run_pipeline():
+    """Synchronous wrapper for backward compatibility"""
+    try:
+        # Run async pipeline
+        asyncio.run(run_pipeline_async())
+    except Exception as e:
+        logging.error(f"Pipeline execution failed: {e}", exc_info=True)
 
 if __name__ == "__main__":
     run_pipeline()
