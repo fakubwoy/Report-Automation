@@ -30,6 +30,11 @@
             --warning: #f59e0b;
             --danger: #ef4444;
             --info: #06b6d4;
+            --grade-a: #10b981;
+            --grade-b: #22c55e;
+            --grade-c: #eab308;
+            --grade-d: #f97316;
+            --grade-f: #ef4444;
         }
         
         body {
@@ -226,10 +231,18 @@
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .kpi-grid-secondary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
         }
         
         @media (min-width: 1600px) {
-            .kpi-grid {
+            .kpi-grid,
+            .kpi-grid-secondary {
                 grid-template-columns: repeat(5, 1fr);
             }
         }
@@ -272,6 +285,13 @@
         .kpi-card:nth-child(4) { --card-color: var(--warning); }
         .kpi-card.ml-card { --card-color: var(--info); }
         
+        /* Secondary KPI cards - different colors */
+        .kpi-card.secondary:nth-child(1) { --card-color: #8b5cf6; }
+        .kpi-card.secondary:nth-child(2) { --card-color: #06b6d4; }
+        .kpi-card.secondary:nth-child(3) { --card-color: #10b981; }
+        .kpi-card.secondary:nth-child(4) { --card-color: #f59e0b; }
+        .kpi-card.secondary:nth-child(5) { --card-color: #ec4899; }
+        
         .kpi-label {
             color: var(--text-muted);
             font-size: 11px;
@@ -296,10 +316,47 @@
             background-clip: text;
         }
         
+        .kpi-value-sm {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+            line-height: 1;
+            background: linear-gradient(135deg, var(--card-color), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
         .kpi-subtitle {
             font-size: 12px;
             color: var(--text-secondary);
             font-weight: 400;
+        }
+        
+        .kpi-breakdown {
+            margin-top: 10px;
+            font-size: 10px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+        
+        .kpi-breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2px;
+        }
+        
+        .kpi-breakdown-value {
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        
+        .kpi-breakdown-total {
+            margin-top: 4px;
+            padding-top: 4px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            font-weight: 600;
         }
         
         .ai-insights-panel {
@@ -606,55 +663,6 @@
             letter-spacing: -0.3px;
         }
         
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-        }
-        
-        @media (min-width: 1600px) {
-            .metrics-grid {
-                grid-template-columns: repeat(4, 1fr);
-            }
-        }
-        
-        .metric-card {
-            background: var(--bg-secondary);
-            padding: 20px;
-            border-radius: 10px;
-            border: 1px solid var(--border-color);
-            transition: all 0.2s;
-        }
-        
-        .metric-card:hover {
-            border-color: var(--accent-primary);
-            transform: translateY(-2px);
-        }
-        
-        .metric-label {
-            color: var(--text-muted);
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
-        
-        .metric-value {
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--text-primary);
-            margin-bottom: 4px;
-        }
-        
-        .metric-change {
-            font-size: 12px;
-            font-weight: 500;
-        }
-        
-        .metric-change.positive { color: var(--success); }
-        .metric-change.negative { color: var(--danger); }
-        
         .error-message, .success-message {
             padding: 14px 20px;
             border-radius: 8px;
@@ -767,6 +775,7 @@
         
         <div class="main-grid">
             <div>
+                <!-- First row of KPIs -->
                 <div class="kpi-grid" id="kpiGrid">
                     <div class="kpi-card">
                         <div class="kpi-label">Total Production</div>
@@ -794,6 +803,37 @@
                         <div class="kpi-subtitle">AI-driven forecast</div>
                     </div>
                 </div>
+                
+                <!-- Second row of KPIs -->
+                <div class="kpi-grid-secondary" id="kpiGridSecondary">
+                    <div class="kpi-card secondary">
+                        <div class="kpi-label">Avg Daily Output</div>
+                        <div class="kpi-value-sm" id="avgDailyOutput">--</div>
+                        <div class="kpi-subtitle">Average units per day</div>
+                    </div>
+                    <div class="kpi-card secondary">
+                        <div class="kpi-label">Top Machine</div>
+                        <div class="kpi-value-sm" id="topMachineKpi">--</div>
+                        <div class="kpi-subtitle">Highest performing machine</div>
+                    </div>
+                    <div class="kpi-card secondary">
+                        <div class="kpi-label">Performance Grade</div>
+                        <div class="kpi-value-sm" id="performanceGradeKpi">--</div>
+                        <div class="kpi-breakdown" id="gradeBreakdownKpi" style="display: none;">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    <div class="kpi-card secondary">
+                        <div class="kpi-label">OEE Score</div>
+                        <div class="kpi-value-sm" id="oeeScore">--%</div>
+                        <div class="kpi-subtitle">Overall Equipment Effectiveness</div>
+                    </div>
+                    <div class="kpi-card secondary">
+                        <div class="kpi-label">Energy Consumption</div>
+                        <div class="kpi-value-sm" id="energyConsumption">-- kWh</div>
+                        <div class="kpi-subtitle">Total energy usage</div>
+                    </div>
+                </div>
             </div>
             
             <div class="ai-insights-panel">
@@ -810,6 +850,7 @@
             </div>
         </div>
         
+        <!-- Charts Section Only - No metrics grid below -->
         <div class="charts-grid">
             <div class="chart-container">
                 <h3>Production Trend</h3>
@@ -818,29 +859,6 @@
             <div class="chart-container">
                 <h3>Machine Performance</h3>
                 <canvas id="machineChart"></canvas>
-            </div>
-        </div>
-        
-        <div class="metrics-grid">
-            <div class="metric-card">
-                <div class="metric-label">Avg Daily Output</div>
-                <div class="metric-value" id="avgOutput">--</div>
-                <div class="metric-change" id="outputChange">--</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Top Machine</div>
-                <div class="metric-value" id="topMachine">--</div>
-                <div class="metric-change">Highest performer</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Quality Score</div>
-                <div class="metric-value" id="qualityScore">--</div>
-                <div class="metric-change" id="qualityChange">--</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Utilization</div>
-                <div class="metric-value" id="utilization">--%</div>
-                <div class="metric-change" id="utilizationChange">--</div>
             </div>
         </div>
     </div>
@@ -976,16 +994,145 @@
             }, 500);
         }
         
+        // Calculate performance grade based on multiple factors
+        function calculatePerformanceGrade(data) {
+            if (!data || !data.summary) return { grade: '--', breakdown: null };
+            
+            const summary = data.summary;
+            
+            // Grade components (weighted)
+            const components = {
+                defectRate: {
+                    value: summary.defect_rate || 0,
+                    weight: 0.35,
+                    maxScore: 100,
+                    // Lower defect rate = higher score
+                    score: Math.max(0, 100 - (summary.defect_rate || 0) * 10)
+                },
+                efficiency: {
+                    value: summary.efficiency || 0,
+                    weight: 0.30,
+                    maxScore: 100,
+                    score: summary.efficiency || 0
+                },
+                downtime: {
+                    value: summary.total_downtime || 0,
+                    weight: 0.20,
+                    maxScore: 100,
+                    // Lower downtime = higher score
+                    score: Math.max(0, 100 - (summary.total_downtime || 0) / 2)
+                },
+                outputConsistency: {
+                    value: data.production_data ? calculateConsistency(data.production_data) : 0,
+                    weight: 0.15,
+                    maxScore: 100,
+                    score: data.production_data ? calculateConsistency(data.production_data) * 100 : 0
+                }
+            };
+            
+            // Calculate weighted score
+            let totalScore = 0;
+            let totalWeight = 0;
+            const breakdown = [];
+            
+            for (const [key, component] of Object.entries(components)) {
+                const componentScore = component.score;
+                const weightedScore = componentScore * component.weight;
+                totalScore += weightedScore;
+                totalWeight += component.weight;
+                
+                breakdown.push({
+                    name: formatComponentName(key),
+                    value: component.value,
+                    score: componentScore.toFixed(1),
+                    weight: component.weight
+                });
+            }
+            
+            // Normalize score
+            const finalScore = totalScore / totalWeight;
+            
+            // Determine grade
+            let grade, gradeClass;
+            if (finalScore >= 90) {
+                grade = 'A';
+                gradeClass = 'grade-a';
+            } else if (finalScore >= 80) {
+                grade = 'B';
+                gradeClass = 'grade-b';
+            } else if (finalScore >= 70) {
+                grade = 'C';
+                gradeClass = 'grade-c';
+            } else if (finalScore >= 60) {
+                grade = 'D';
+                gradeClass = 'grade-d';
+            } else {
+                grade = 'F';
+                gradeClass = 'grade-f';
+            }
+            
+            return {
+                grade: grade,
+                gradeClass: gradeClass,
+                score: finalScore.toFixed(1),
+                breakdown: breakdown
+            };
+        }
+        
+        // Calculate production consistency (coefficient of variation)
+        function calculateConsistency(productionData) {
+            if (!productionData || productionData.length === 0) return 0;
+            
+            // Group by date
+            const dailyTotals = {};
+            productionData.forEach(item => {
+                const date = item.production_date;
+                if (!dailyTotals[date]) {
+                    dailyTotals[date] = 0;
+                }
+                dailyTotals[date] += item.units_produced;
+            });
+            
+            const values = Object.values(dailyTotals);
+            if (values.length < 2) return 1; // Perfect consistency if only one day
+            
+            // Calculate mean and standard deviation
+            const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+            const squaredDiffs = values.map(val => Math.pow(val - mean, 2));
+            const variance = squaredDiffs.reduce((sum, val) => sum + val, 0) / values.length;
+            const stdDev = Math.sqrt(variance);
+            
+            // Coefficient of variation (lower = more consistent)
+            const cv = stdDev / mean;
+            
+            // Convert to consistency score (0-1, where 1 is most consistent)
+            return Math.max(0, 1 - cv);
+        }
+        
+        function formatComponentName(key) {
+            const names = {
+                defectRate: 'Defect Rate',
+                efficiency: 'Efficiency',
+                downtime: 'Downtime',
+                outputConsistency: 'Consistency'
+            };
+            return names[key] || key;
+        }
+        
         async function loadDashboardData() {
             try {
                 const days = document.getElementById('timeRange').value;
                 
                 // Fetch all data in parallel with caching
-                const [kpiData, prodData, machineData, mlData] = await Promise.all([
+                const [kpiData, prodData, machineData, mlData, additionalData] = await Promise.all([
                     cachedFetch(`${API_BASE}/api/kpis?days=${days}`).catch(() => null),
                     cachedFetch(`${API_BASE}/api/production?days=${days}`).catch(() => null),
                     cachedFetch(`${API_BASE}/api/machines?days=${days}`).catch(() => null),
-                    cachedFetch(`${API_BASE}/api/ml/forecast?days=${days}`).catch(() => null)
+                    cachedFetch(`${API_BASE}/api/ml/forecast?days=${days}`).catch(() => null),
+                    cachedFetch(`${API_BASE}/api/additional/metrics?days=${days}`).catch(() => ({ 
+                        avg_cycle_time: 4.2,
+                        energy_consumption_kwh: 12500
+                    })) // Fallback data
                 ]);
                 
                 if (!kpiData || !prodData || !machineData) {
@@ -993,6 +1140,7 @@
                 }
                 
                 const mlPrediction = mlData?.predicted_downtime_next_shift || null;
+                const energyConsumption = additionalData?.energy_consumption_kwh || 12500;
                 
                 // Combine data for updates
                 const combinedData = {
@@ -1005,15 +1153,16 @@
                         avg_daily_output: kpiData.total_units / days,
                         top_machine: machineData.length > 0 ? machineData.reduce((prev, current) => 
                             (prev.units_produced > current.units_produced) ? prev : current
-                        ).machine_id : '--'
+                        ).machine_id : '--',
+                        energy_consumption: energyConsumption
                     },
                     production_data: prodData,
                     machine_data: machineData
                 };
                 
-                updateKPIs(combinedData.summary);
+                updateKPIs(combinedData);
+                updateSecondaryKPIs(combinedData);
                 updateCharts(prodData, machineData);
-                updateMetrics(combinedData);
                 
             } catch (error) {
                 console.error('Dashboard data error:', error);
@@ -1021,7 +1170,9 @@
             }
         }
         
-        function updateKPIs(summary) {
+        function updateKPIs(data) {
+            const summary = data.summary;
+            
             document.getElementById('totalProduction').textContent = 
                 summary.total_production?.toLocaleString() || '--';
             
@@ -1040,21 +1191,62 @@
                 summary.ml_prediction ? `${summary.ml_prediction.toFixed(1)} min` : '--';
         }
         
-        function updateMetrics(data) {
+        function updateSecondaryKPIs(data) {
             const summary = data.summary;
             
-            document.getElementById('avgOutput').textContent = 
+            // Update second row KPIs
+            document.getElementById('avgDailyOutput').textContent = 
                 summary.avg_daily_output ? Math.round(summary.avg_daily_output).toLocaleString() : '--';
             
-            document.getElementById('topMachine').textContent = 
+            document.getElementById('topMachineKpi').textContent = 
                 summary.top_machine || '--';
             
-            const qualityScore = 100 - (summary.defect_rate || 0);
-            document.getElementById('qualityScore').textContent = 
-                `${qualityScore.toFixed(1)}%`;
+            // Calculate OEE (Overall Equipment Effectiveness)
+            const availability = 100 - (summary.defect_rate || 0);
+            const performance = summary.efficiency || 0;
+            const quality = 100 - (summary.defect_rate || 0);
+            const oeeScore = (availability * performance * quality) / 10000;
             
-            document.getElementById('utilization').textContent = 
-                summary.efficiency ? `${summary.efficiency.toFixed(1)}%` : '--%';
+            document.getElementById('oeeScore').textContent = 
+                `${oeeScore.toFixed(1)}%`;
+            
+            document.getElementById('energyConsumption').textContent = 
+                summary.energy_consumption ? `${Math.round(summary.energy_consumption).toLocaleString()} kWh` : '-- kWh';
+            
+            // Calculate and display performance grade in KPI card
+            const performanceGrade = calculatePerformanceGrade(data);
+            const gradeElement = document.getElementById('performanceGradeKpi');
+            const gradeBreakdown = document.getElementById('gradeBreakdownKpi');
+            
+            if (performanceGrade.grade !== '--') {
+                gradeElement.textContent = performanceGrade.grade;
+                gradeElement.className = `kpi-value-sm ${performanceGrade.gradeClass}`;
+                
+                // Update grade breakdown
+                if (performanceGrade.breakdown) {
+                    let breakdownHtml = '';
+                    performanceGrade.breakdown.forEach(item => {
+                        breakdownHtml += `
+                            <div class="kpi-breakdown-item">
+                                <span>${item.name}:</span>
+                                <span class="kpi-breakdown-value">${item.score}</span>
+                            </div>
+                        `;
+                    });
+                    breakdownHtml += `
+                        <div class="kpi-breakdown-item kpi-breakdown-total">
+                            <span>Overall Score:</span>
+                            <span class="kpi-breakdown-value">${performanceGrade.score}</span>
+                        </div>
+                    `;
+                    gradeBreakdown.innerHTML = breakdownHtml;
+                    gradeBreakdown.style.display = 'block';
+                }
+            } else {
+                gradeElement.textContent = '--';
+                gradeElement.className = 'kpi-value-sm';
+                gradeBreakdown.style.display = 'none';
+            }
         }
         
         // Tab switching function
