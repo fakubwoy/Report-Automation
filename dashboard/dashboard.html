@@ -310,6 +310,8 @@
             height: fit-content;
             max-height: none;
             overflow-y: visible;
+            display: flex;
+            flex-direction: column;
         }
         
         @media (min-width: 1400px) {
@@ -349,11 +351,110 @@
             gap: 12px;
         }
         
+        /* Tabs Styling */
+        .ai-tabs {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        
+        .tabs-header {
+            display: flex;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 4px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: 10px 12px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        
+        .tab-btn:hover {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--accent-primary);
+        }
+        
+        .tab-btn.active {
+            background: var(--accent-primary);
+            color: white;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+        }
+        
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Summary Tab */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .summary-item {
+            background: var(--bg-secondary);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .summary-item h4 {
+            color: var(--text-muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        
+        .summary-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        
+        .summary-value.danger { color: var(--danger); }
+        .summary-value.warning { color: var(--warning); }
+        .summary-value.success { color: var(--success); }
+        .summary-value.info { color: var(--info); }
+        
+        .summary-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        /* Recommendations Tab */
+        .recommendations-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
         .insight-card {
             background: var(--bg-secondary);
             border-left: 3px solid var(--accent-primary);
             padding: 16px;
-            margin-bottom: 12px;
             border-radius: 8px;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -405,6 +506,60 @@
             font-size: 12px;
             color: var(--text-secondary);
             line-height: 1.4;
+        }
+        
+        /* Analysis Tab */
+        .analysis-content {
+            white-space: pre-wrap;
+            font-size: 13px;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .analysis-content strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        
+        /* Insights Header */
+        .insights-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .risk-badge {
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .risk-high {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        
+        .risk-medium {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        
+        .risk-low {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.3);
         }
         
         .loading-spinner {
@@ -533,70 +688,15 @@
             border-color: rgba(16, 185, 129, 0.3);
         }
         
-        .ml-summary {
-            background: var(--bg-secondary);
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border: 1px solid var(--border-color);
-        }
-        
-        .ml-summary h3 {
-            color: var(--accent-primary);
-            font-size: 15px;
-            margin-bottom: 16px;
-            font-weight: 600;
-        }
-        
-        .ml-summary p {
-            margin-bottom: 10px;
-            font-size: 14px;
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-        
-        .ml-summary strong {
-            color: var(--text-primary);
-            font-weight: 600;
-        }
-        
-        .ai-analysis {
-            background: var(--bg-secondary);
-            padding: 24px;
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-            margin-top: 20px;
-        }
-        
-        .ai-analysis h3 {
-            color: var(--info);
-            font-size: 15px;
-            margin-bottom: 16px;
-            font-weight: 600;
-        }
-        
-        .ai-analysis-content {
-            white-space: pre-wrap;
-            font-size: 13px;
-            line-height: 1.7;
-            color: var(--text-secondary);
-        }
-        
-        .recommendations-section {
-            margin-bottom: 20px;
-        }
-        
-        .recommendations-section h3 {
-            color: var(--info);
-            font-size: 15px;
-            margin-bottom: 16px;
-            font-weight: 600;
-        }
-        
         .empty-state {
             text-align: center;
             padding: 60px 20px;
             color: var(--text-muted);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
         }
         
         .empty-state p {
@@ -606,6 +706,38 @@
         
         canvas {
             max-height: 300px;
+        }
+        
+        /* Alert Icon */
+        .alert-icon {
+            width: 20px;
+            height: 20px;
+            background: var(--danger);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .tab-content::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .tab-content::-webkit-scrollbar-track {
+            background: transparent;
+            border-radius: 3px;
+        }
+        
+        .tab-content::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+        
+        .tab-content::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-primary);
         }
     </style>
 </head>
@@ -665,7 +797,10 @@
             </div>
             
             <div class="ai-insights-panel">
-                <h2>AI Insights</h2>
+                <div class="insights-header">
+                    <h2>AI Insights</h2>
+                    <div id="riskBadge" class="risk-badge" style="display: none;">--</div>
+                </div>
                 <div id="aiInsightsContent">
                     <div class="empty-state">
                         <div class="loading-spinner" style="width: 40px; height: 40px; border-width: 3px;"></div>
@@ -715,6 +850,7 @@
         let ws = null;
         let productionChart = null;
         let machineChart = null;
+        let currentAIInsights = null;
         
         // Performance optimization: Cache and deduplication
         const cache = {
@@ -921,55 +1057,154 @@
                 summary.efficiency ? `${summary.efficiency.toFixed(1)}%` : '--%';
         }
         
+        // Tab switching function
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+        
+        // Format analysis text
+        function formatAnalysisText(text) {
+            if (!text) return '';
+            return text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n\n/g, '<br><br>')
+                .replace(/\n/g, '<br>');
+        }
+        
+        // Get risk badge class
+        function getRiskClass(riskLevel) {
+            riskLevel = riskLevel.toLowerCase();
+            if (riskLevel.includes('high')) return 'risk-high';
+            if (riskLevel.includes('medium')) return 'risk-medium';
+            return 'risk-low';
+        }
+        
+        // Get value color class
+        function getValueClass(value, type = 'risk') {
+            if (type === 'downtime') {
+                return value > 30 ? 'danger' : value > 15 ? 'warning' : 'success';
+            }
+            if (type === 'confidence') {
+                return value > 95 ? 'success' : value > 85 ? 'warning' : 'danger';
+            }
+            if (type === 'defects') {
+                return value > 5 ? 'danger' : value > 2 ? 'warning' : 'success';
+            }
+            return 'info';
+        }
+        
         async function getAIInsights() {
             const btn = document.querySelector('button[onclick="getAIInsights()"]');
             const content = document.getElementById('aiInsightsContent');
+            const riskBadge = document.getElementById('riskBadge');
             
             if (btn) {
                 btn.disabled = true;
                 btn.innerHTML = '<span class="loading-spinner"></span> Analyzing...';
             }
             content.innerHTML = '<div class="empty-state"><div class="loading-spinner" style="width: 40px; height: 40px; border-width: 3px;"></div><p>Processing data with AI...</p></div>';
+            riskBadge.style.display = 'none';
             
             try {
                 const days = document.getElementById('timeRange').value;
-                // Use cachedFetch but with shorter TTL for AI insights
                 const data = await cachedFetch(`${API_BASE}/api/ai/insights?days=${days}`, false);
                 
                 if (data.ai_insights && data.ai_insights.strategic_insights) {
+                    currentAIInsights = data;
                     const insights = data.ai_insights.strategic_insights;
                     const mlInsights = data.ml_analysis.insights;
+                    const riskLevel = mlInsights?.risk_level || 'Low';
+                    const riskClass = getRiskClass(riskLevel);
                     
-                    let html = `<div class="ml-summary">
-                        <h3>ML Analysis Summary</h3>
-                        <p><strong>Predicted Downtime:</strong> ${data.ml_analysis.prediction.toFixed(1)} min</p>
-                        <p><strong>Confidence Level:</strong> ${(data.ml_analysis.confidence * 100).toFixed(1)}%</p>
-                        <p><strong>Risk Assessment:</strong> ${mlInsights.risk_level}</p>
-                        <p><strong>Anomalies Detected:</strong> ${mlInsights.anomalies_detected}</p>
-                    </div>`;
+                    // Update risk badge
+                    riskBadge.textContent = `${riskLevel} Risk`;
+                    riskBadge.className = `risk-badge ${riskClass}`;
+                    riskBadge.style.display = 'block';
                     
-                    if (mlInsights.recommendations && mlInsights.recommendations.length > 0) {
-                        html += `<div class="recommendations-section">
-                            <h3>Recommendations</h3>`;
-                        
-                        mlInsights.recommendations.forEach(rec => {
-                            const priorityClass = `priority-${rec.priority.toLowerCase()}`;
-                            html += `
-                                <div class="insight-card">
-                                    <span class="insight-priority ${priorityClass}">${rec.priority} Priority</span>
-                                    <div class="insight-message">${rec.message}</div>
-                                    <div class="insight-action">Action: ${rec.action}</div>
+                    // Create tabbed interface
+                    const html = `
+                        <div class="ai-tabs">
+                            <div class="tabs-header">
+                                <button class="tab-btn active" onclick="switchTab('summary')">Summary</button>
+                                <button class="tab-btn" onclick="switchTab('recommendations')">Recommendations</button>
+                                <button class="tab-btn" onclick="switchTab('analysis')">Analysis</button>
+                            </div>
+                            
+                            <div class="tab-content active" id="tab-summary">
+                                <div class="summary-grid">
+                                    <div class="summary-item">
+                                        <h4>Predicted Downtime</h4>
+                                        <div class="summary-value ${getValueClass(data.ml_analysis.prediction, 'downtime')}">
+                                            ${data.ml_analysis.prediction ? data.ml_analysis.prediction.toFixed(1) : '--'} min
+                                        </div>
+                                        <div class="summary-label">Next shift prediction</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <h4>Confidence Level</h4>
+                                        <div class="summary-value ${getValueClass(data.ml_analysis.confidence * 100, 'confidence')}">
+                                            ${data.ml_analysis.confidence ? (data.ml_analysis.confidence * 100).toFixed(1) : '--'}%
+                                        </div>
+                                        <div class="summary-label">ML model confidence</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <h4>Anomalies</h4>
+                                        <div class="summary-value ${getValueClass(mlInsights?.anomalies_detected || 0, 'defects')}">
+                                            ${mlInsights?.anomalies_detected || '0'}
+                                        </div>
+                                        <div class="summary-label">Patterns detected</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <h4>Risk Level</h4>
+                                        <div class="summary-value ${riskClass.replace('risk-', '')}">
+                                            ${riskLevel}
+                                        </div>
+                                        <div class="summary-label">Overall assessment</div>
+                                    </div>
                                 </div>
-                            `;
-                        });
-                        
-                        html += `</div>`;
-                    }
-                    
-                    html += `<div class="ai-analysis">
-                        <h3>Strategic Analysis</h3>
-                        <div class="ai-analysis-content">${insights.full_analysis}</div>
-                    </div>`;
+                                
+                                <div style="margin-top: 20px; padding: 16px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border-color);">
+                                    <h4 style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">Quick Insight</h4>
+                                    <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+                                        ${insights.full_analysis ? insights.full_analysis.split('\n\n')[0].substring(0, 150) + '...' : 'No analysis available.'}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <div class="tab-content" id="tab-recommendations">
+                                <div class="recommendations-list">
+                                    ${mlInsights?.recommendations && mlInsights.recommendations.length > 0 ? 
+                                        mlInsights.recommendations.map(rec => {
+                                            const priorityClass = `priority-${rec.priority.toLowerCase()}`;
+                                            return `
+                                                <div class="insight-card">
+                                                    <span class="insight-priority ${priorityClass}">${rec.priority} Priority</span>
+                                                    <div class="insight-message">${rec.message}</div>
+                                                    <div class="insight-action">Action: ${rec.action}</div>
+                                                </div>
+                                            `;
+                                        }).join('') : 
+                                        '<div class="empty-state" style="padding: 40px 20px;"><p>No recommendations available</p></div>'
+                                    }
+                                </div>
+                            </div>
+                            
+                            <div class="tab-content" id="tab-analysis">
+                                <div class="analysis-content">
+                                    ${insights.full_analysis ? formatAnalysisText(insights.full_analysis) : 'No strategic analysis available.'}
+                                </div>
+                            </div>
+                        </div>
+                    `;
                     
                     content.innerHTML = html;
                     showMessage('AI insights generated successfully', 'success');
@@ -983,7 +1218,7 @@
                     <div class="empty-state">
                         <p style="color: var(--danger);">AI insights unavailable</p>
                         <p style="font-size: 12px; margin-top: 10px;">
-                            ${error.message}
+                            ${error.message || 'Failed to load insights'}
                         </p>
                     </div>
                 `;
