@@ -199,7 +199,48 @@ async def health_check():
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database unavailable: {str(e)}")
-
+@app.get("/api/additional/metrics")
+async def get_additional_metrics(days: int = 7):
+    """Get additional metrics like energy consumption and cycle time"""
+    try:
+        # Since this data might not be in your database yet, 
+        # you can calculate it or provide default values
+        
+        # First, let's get some actual data to calculate from
+        query = f"""
+            SELECT SUM(units_produced) as total_units,
+                   SUM(downtime_min) as total_downtime
+            FROM live_production
+            WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'
+        """
+        df = pd.read_sql_query(query, engine)
+        
+        total_units = int(df['total_units'].iloc[0]) if df['total_units'].iloc[0] else 0
+        total_downtime = float(df['total_downtime'].iloc[0]) if df['total_downtime'].iloc[0] else 0
+        
+        # Calculate derived metrics (you can adjust these formulas)
+        # Energy consumption estimate: ~10 kWh per unit produced
+        energy_consumption_kwh = total_units * 10
+        
+        # Average cycle time estimate: 4.2 minutes per unit (adjustable)
+        avg_cycle_time = 4.2
+        
+        return {
+            "energy_consumption_kwh": energy_consumption_kwh,
+            "avg_cycle_time": avg_cycle_time,
+            "total_units": total_units,
+            "total_downtime": total_downtime,
+            "estimated_metrics": True  # Flag to indicate these are estimates
+        }
+    except Exception as e:
+        logging.error(f"Additional metrics error: {e}")
+        return {
+            "energy_consumption_kwh": 12500,
+            "avg_cycle_time": 4.2,
+            "error": str(e),
+            "estimated_metrics": True
+        }
+        
 @app.get("/api/production", response_model=List[ProductionRecord])
 async def get_production_data(days: int = 7, machine_id: Optional[str] = None):
     try:

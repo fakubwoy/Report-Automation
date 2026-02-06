@@ -6,3 +6,4 @@ reports/*.png
 reports/*.txt
 src/__pycache__
 __pycache__
+nginx/logs/
