@@ -210,113 +210,206 @@ class AdvancedMLEngine:
                 'type': 'maintenance',
                 'priority': 'High',
                 'message': 'Schedule preventive maintenance to reduce predicted downtime',
-                'action': 'Review machine performance logs'
+                'action': f'Predicted downtime is {prediction:.1f} min - schedule maintenance within 24 hours'
             })
         
         # Anomaly recommendation
         if len(anomalies) > 0:
             recommendations.append({
-                'type': 'anomaly',
+                'type': 'quality',
                 'priority': 'Medium',
-                'message': f'{len(anomalies)} anomalous patterns detected in recent data',
-                'action': 'Investigate unusual production patterns'
+                'message': f'{len(anomalies)} production anomalies detected',
+                'action': 'Investigate unusual patterns in recent production data'
             })
         
         # Quality recommendation
-        if 'Defect_Rate' in df.columns:
-            avg_defect_rate = df['Defect_Rate'].mean()
-            if avg_defect_rate > 0.05:  # More than 5% defect rate
-                recommendations.append({
-                    'type': 'quality',
-                    'priority': 'High',
-                    'message': f'Average defect rate at {avg_defect_rate*100:.1f}% exceeds threshold',
-                    'action': 'Inspect quality control processes'
-                })
+        avg_defect_rate = df['Defective Units'].sum() / df['Units Produced'].sum()
+        if avg_defect_rate > 0.05:  # More than 5% defects
+            recommendations.append({
+                'type': 'quality',
+                'priority': 'High',
+                'message': 'Defect rate exceeds acceptable threshold',
+                'action': 'Review quality control procedures and inspect machinery'
+            })
         
         return recommendations
     
     def create_advanced_visualizations(self, df, X, y, prediction, anomalies):
         """
-        Create comprehensive ML visualizations
+        FIXED: Create comprehensive ML visualizations for PDF report with better design
         """
         try:
-            fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-            fig.suptitle('Advanced ML Analytics Dashboard', fontsize=16, fontweight='bold')
+            # Set style for professional charts
+            sns.set_style("darkgrid")
+            plt.rcParams['figure.facecolor'] = '#1e2337'
+            plt.rcParams['axes.facecolor'] = '#141829'
+            plt.rcParams['axes.edgecolor'] = '#2a2f4a'
+            plt.rcParams['text.color'] = '#e4e7eb'
+            plt.rcParams['axes.labelcolor'] = '#e4e7eb'
+            plt.rcParams['xtick.color'] = '#9ca3af'
+            plt.rcParams['ytick.color'] = '#9ca3af'
+            plt.rcParams['grid.color'] = '#2a2f4a'
             
-            # 1. Feature Importance
+            # Create 2x2 grid layout
+            fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+            fig.suptitle('Machine Learning Analysis Dashboard', 
+                        fontsize=18, fontweight='bold', color='#3b82f6', y=0.98)
+            
+            # 1. Feature Importance (Top Left)
             if self.feature_importance:
                 sorted_features = sorted(
                     self.feature_importance.items(),
                     key=lambda x: x[1],
                     reverse=True
-                )
+                )[:6]  # Top 6 features
                 features, importance = zip(*sorted_features)
                 
-                axes[0, 0].barh(features, importance, color='#3498db')
-                axes[0, 0].set_xlabel('Importance Score')
-                axes[0, 0].set_title('Feature Importance (Random Forest)')
-                axes[0, 0].grid(axis='x', alpha=0.3)
+                colors = plt.cm.Blues(np.linspace(0.4, 0.8, len(features)))
+                bars = axes[0, 0].barh(features, importance, color=colors, edgecolor='#2a2f4a')
+                axes[0, 0].set_xlabel('Importance Score', fontsize=11, fontweight='bold')
+                axes[0, 0].set_title('Top Feature Importance (Random Forest)', 
+                                    fontsize=12, fontweight='bold', pad=10)
+                axes[0, 0].grid(axis='x', alpha=0.3, linestyle='--')
+                
+                # Add value labels on bars
+                for i, bar in enumerate(bars):
+                    width = bar.get_width()
+                    axes[0, 0].text(width, bar.get_y() + bar.get_height()/2, 
+                                   f'{width:.3f}', 
+                                   ha='left', va='center', fontsize=9, 
+                                   color='#3b82f6', fontweight='bold')
             
-            # 2. Actual vs Predicted
+            # 2. Actual vs Predicted Scatter (Top Right)
             if self.rf_model and len(y) > 0:
                 X_scaled = self.scaler.transform(X)
-                predictions = self.rf_model.predict(X_scaled)
+                rf_predictions = self.rf_model.predict(X_scaled)
+                xgb_predictions = self.xgb_model.predict(X_scaled)
                 
-                axes[0, 1].scatter(y, predictions, alpha=0.6, color='#2ecc71')
-                axes[0, 1].plot([y.min(), y.max()], [y.min(), y.max()], 
-                               'r--', lw=2, label='Perfect Prediction')
-                axes[0, 1].set_xlabel('Actual Downtime (min)')
-                axes[0, 1].set_ylabel('Predicted Downtime (min)')
-                axes[0, 1].set_title('Model Accuracy: Actual vs Predicted')
-                axes[0, 1].legend()
-                axes[0, 1].grid(alpha=0.3)
+                # Calculate R² score
+                from sklearn.metrics import r2_score
+                r2_rf = r2_score(y, rf_predictions)
+                r2_xgb = r2_score(y, xgb_predictions)
+                
+                # Plot both models
+                axes[0, 1].scatter(y, rf_predictions, alpha=0.5, color='#3b82f6', 
+                                 label=f'Random Forest (R²={r2_rf:.3f})', s=50)
+                axes[0, 1].scatter(y, xgb_predictions, alpha=0.5, color='#10b981', 
+                                 label=f'XGBoost (R²={r2_xgb:.3f})', s=50, marker='^')
+                
+                # Perfect prediction line
+                max_val = max(y.max(), max(rf_predictions.max(), xgb_predictions.max()))
+                axes[0, 1].plot([0, max_val], [0, max_val], 
+                              'r--', lw=2, label='Perfect Prediction', alpha=0.7)
+                
+                axes[0, 1].set_xlabel('Actual Downtime (min)', fontsize=11, fontweight='bold')
+                axes[0, 1].set_ylabel('Predicted Downtime (min)', fontsize=11, fontweight='bold')
+                axes[0, 1].set_title('Model Accuracy: Actual vs Predicted', 
+                                    fontsize=12, fontweight='bold', pad=10)
+                axes[0, 1].legend(loc='upper left', fontsize=9)
+                axes[0, 1].grid(alpha=0.3, linestyle='--')
             
-            # 3. Anomaly Detection
+            # 3. Anomaly Detection Timeline (Bottom Left)
             if len(anomalies) > 0 and 'Downtime (minutes)' in df.columns:
                 time_index = range(len(df))
+                
+                # Plot normal data
                 axes[1, 0].plot(time_index, df['Downtime (minutes)'], 
-                               'b-', label='Normal', linewidth=2)
+                              'b-', label='Normal Data', linewidth=2, alpha=0.7)
+                
+                # Highlight anomalies
                 axes[1, 0].scatter(anomalies, df.iloc[anomalies]['Downtime (minutes)'],
-                                  color='red', s=100, label='Anomalies', 
-                                  marker='X', zorder=5)
-                axes[1, 0].set_xlabel('Time Sequence')
-                axes[1, 0].set_ylabel('Downtime (minutes)')
-                axes[1, 0].set_title(f'Anomaly Detection ({len(anomalies)} anomalies found)')
-                axes[1, 0].legend()
-                axes[1, 0].grid(alpha=0.3)
+                                 color='#ef4444', s=150, label=f'Anomalies ({len(anomalies)})', 
+                                 marker='X', zorder=5, edgecolors='white', linewidth=1.5)
+                
+                axes[1, 0].set_xlabel('Time Sequence (Data Point Index)', fontsize=11, fontweight='bold')
+                axes[1, 0].set_ylabel('Downtime (minutes)', fontsize=11, fontweight='bold')
+                axes[1, 0].set_title(f'Anomaly Detection - {len(anomalies)} Anomalies Found', 
+                                    fontsize=12, fontweight='bold', pad=10, color='#ef4444')
+                axes[1, 0].legend(loc='upper right', fontsize=9)
+                axes[1, 0].grid(alpha=0.3, linestyle='--')
+                
+                # Add shaded regions for anomaly zones
+                for anomaly_idx in anomalies:
+                    axes[1, 0].axvspan(anomaly_idx - 0.5, anomaly_idx + 0.5, 
+                                      alpha=0.2, color='red')
             
-            # 4. Prediction Forecast
+            # 4. FIXED: Downtime Forecast with Confidence Interval (Bottom Right)
             if 'Downtime (minutes)' in df.columns:
-                recent_data = df['Downtime (minutes)'].tail(10)
+                # Get recent historical data
+                recent_data = df['Downtime (minutes)'].tail(12).values
+                historical_indices = range(len(recent_data))
+                
+                # Generate forecast
                 future_steps = 5
-                forecast = [prediction] * future_steps
+                X_scaled = self.scaler.transform(X)
                 
-                combined_data = list(recent_data) + forecast
-                combined_index = range(len(combined_data))
+                # Get predictions from both models for uncertainty estimation
+                rf_preds = self.rf_model.predict(X_scaled[-future_steps:])
+                xgb_preds = self.xgb_model.predict(X_scaled[-future_steps:])
                 
-                axes[1, 1].plot(combined_index[:len(recent_data)], 
-                               combined_data[:len(recent_data)],
-                               'b-', linewidth=2, label='Historical')
-                axes[1, 1].plot(combined_index[len(recent_data)-1:], 
-                               combined_data[len(recent_data)-1:],
-                               'r--', linewidth=2, label='Forecast', marker='o')
-                axes[1, 1].axvline(x=len(recent_data)-1, color='gray', 
-                                  linestyle=':', alpha=0.5)
-                axes[1, 1].set_xlabel('Time Sequence')
-                axes[1, 1].set_ylabel('Downtime (minutes)')
-                axes[1, 1].set_title('Downtime Forecast (Next 5 Periods)')
-                axes[1, 1].legend()
-                axes[1, 1].grid(alpha=0.3)
+                # Ensemble forecast
+                forecast = 0.4 * rf_preds + 0.6 * xgb_preds
+                
+                # Calculate prediction uncertainty (std between models)
+                uncertainty = np.abs(rf_preds - xgb_preds)
+                upper_bound = forecast + uncertainty
+                lower_bound = forecast - uncertainty
+                
+                # Combine historical and forecast
+                forecast_indices = range(len(recent_data) - 1, len(recent_data) + future_steps)
+                
+                # Plot historical data
+                axes[1, 1].plot(historical_indices, recent_data,
+                              'b-', linewidth=2.5, label='Historical', marker='o', 
+                              markersize=6, markerfacecolor='#3b82f6')
+                
+                # Plot forecast
+                forecast_full = [recent_data[-1]] + list(forecast)
+                axes[1, 1].plot(forecast_indices, forecast_full,
+                              'r--', linewidth=2.5, label='ML Forecast', marker='s', 
+                              markersize=6, markerfacecolor='#ef4444')
+                
+                # Add confidence interval
+                forecast_indices_fill = range(len(recent_data) - 1, len(recent_data) + future_steps)
+                upper_full = [recent_data[-1]] + list(upper_bound)
+                lower_full = [recent_data[-1]] + list(lower_bound)
+                axes[1, 1].fill_between(forecast_indices_fill, lower_full, upper_full,
+                                       alpha=0.2, color='red', label='Confidence Interval')
+                
+                # Add vertical separator
+                axes[1, 1].axvline(x=len(recent_data) - 1, color='gray', 
+                                  linestyle=':', alpha=0.6, linewidth=2)
+                axes[1, 1].text(len(recent_data) - 1, axes[1, 1].get_ylim()[1] * 0.95, 
+                              'Forecast →', ha='center', fontsize=10, 
+                              color='#f59e0b', fontweight='bold',
+                              bbox=dict(boxstyle='round', facecolor='#141829', edgecolor='#f59e0b'))
+                
+                axes[1, 1].set_xlabel('Time Period', fontsize=11, fontweight='bold')
+                axes[1, 1].set_ylabel('Downtime (minutes)', fontsize=11, fontweight='bold')
+                axes[1, 1].set_title('Downtime Forecast (Next 5 Periods)', 
+                                    fontsize=12, fontweight='bold', pad=10)
+                axes[1, 1].legend(loc='upper left', fontsize=9)
+                axes[1, 1].grid(alpha=0.3, linestyle='--')
+                
+                # Add prediction value annotation
+                axes[1, 1].annotate(f'Predicted: {prediction:.1f} min', 
+                                   xy=(forecast_indices[-1], forecast[-1]),
+                                   xytext=(10, 20), textcoords='offset points',
+                                   bbox=dict(boxstyle='round,pad=0.5', fc='#3b82f6', alpha=0.8),
+                                   arrowprops=dict(arrowstyle='->', connectionstyle='arc3,rad=0',
+                                                 color='#3b82f6', lw=2),
+                                   fontsize=10, fontweight='bold', color='white')
             
             plt.tight_layout()
             plot_path = "reports/chart_ml_advanced.png"
-            plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+            plt.savefig(plot_path, dpi=150, bbox_inches='tight', facecolor='#1e2337')
             plt.close()
             
+            logging.info(f"Advanced ML visualization saved to {plot_path}")
             return plot_path
             
         except Exception as e:
-            logging.error(f"Visualization creation failed: {e}")
+            logging.error(f"Visualization creation failed: {e}", exc_info=True)
             return None
 
 

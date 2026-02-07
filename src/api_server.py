@@ -256,13 +256,14 @@ async def get_production_data(days: int = 7, machine_id: Optional[str] = None):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/kpis", response_model=KPIResponse)
+@app.get("/api/kpis")
 async def get_kpis(days: int = 7):
     try:
         query = f"""
             SELECT SUM(units_produced) as total_units,
                    SUM(defective_units) as total_defects,
-                   AVG(downtime_min) as avg_downtime
+                   AVG(downtime_min) as avg_downtime,
+                   SUM(downtime_min) as total_downtime
             FROM live_production
             WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'
         """
@@ -271,13 +272,25 @@ async def get_kpis(days: int = 7):
         total_units = int(df['total_units'].iloc[0]) if df['total_units'].iloc[0] else 0
         total_defects = int(df['total_defects'].iloc[0]) if df['total_defects'].iloc[0] else 0
         avg_downtime = float(df['avg_downtime'].iloc[0]) if df['avg_downtime'].iloc[0] else 0
+        total_downtime = float(df['total_downtime'].iloc[0]) if df['total_downtime'].iloc[0] else 0
+        
         yield_pct = ((total_units - total_defects) / total_units * 100) if total_units > 0 else 0
+        defect_rate = (total_defects / total_units * 100) if total_units > 0 else 0
+        
+        # Calculate efficiency (simplified: uptime percentage)
+        # Assuming 480 minutes per day (8 hours) per machine, 3 machines
+        theoretical_max_time = days * 480 * 3
+        actual_uptime = theoretical_max_time - total_downtime
+        efficiency = (actual_uptime / theoretical_max_time * 100) if theoretical_max_time > 0 else 0
         
         return {
             "total_units": total_units,
             "total_defects": total_defects,
             "yield_percentage": round(yield_pct, 2),
+            "defect_rate": round(defect_rate, 2),
             "avg_downtime": round(avg_downtime, 2),
+            "total_downtime": round(total_downtime, 2),
+            "efficiency": round(efficiency, 2),
             "report_date": datetime.now().strftime('%Y-%m-%d')
         }
     except Exception as e:
@@ -301,6 +314,11 @@ async def get_machine_stats(days: int = 7):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/ml/prediction")
+async def get_ml_prediction(days: int = 30):
+    """ML prediction endpoint - compatible with dashboard"""
+    return await get_ml_forecast(days)
+
 @app.get("/api/ml/forecast")
 async def get_ml_forecast(days: int = 30):
     """Advanced ML forecast with ensemble predictions"""
@@ -313,6 +331,19 @@ async def get_ml_forecast(days: int = 30):
             WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'
         """
         df = pd.read_sql_query(query, engine)
+        
+        if len(df) == 0:
+            # Return default values if no data
+            return {
+                "predicted_downtime_next_shift": 0,
+                "model_confidence_score": 0,
+                "risk_assessment": "Unknown",
+                "anomalies_detected": 0,
+                "feature_importance": {},
+                "recommendations": [],
+                "model_type": "No Data",
+                "message": "Insufficient data for prediction"
+            }
         
         if ADVANCED_ML_AVAILABLE:
             # Use advanced ML engine

@@ -46,7 +46,10 @@ async def get_all_opcua_data(max_retries=5, retry_delay=2):
     
     return []
 
-def load_live_data():
+async def load_live_data_async():
+    """
+    Async version of load_live_data for use in async context
+    """
     user = os.getenv('DB_USER')
     password = os.getenv('DB_PASSWORD')
     # Use service name from compose, not localhost 
@@ -77,7 +80,8 @@ def load_live_data():
             })
         db_df = pd.DataFrame(history)
 
-    live_data_list = asyncio.run(get_all_opcua_data())
+    # Await the async function
+    live_data_list = await get_all_opcua_data()
     live_df = pd.DataFrame(live_data_list)
 
     df_combined = pd.concat([db_df, live_df], ignore_index=True)
@@ -91,3 +95,10 @@ def load_live_data():
         df_combined[col] = pd.to_numeric(df_combined[col], errors='coerce').fillna(0)
     
     return df_combined, live_data_list, engine
+
+def load_live_data():
+    """
+    Synchronous wrapper for backward compatibility
+    Use this when calling from non-async context
+    """
+    return asyncio.run(load_live_data_async())

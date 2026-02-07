@@ -1,10 +1,11 @@
 import logging
 import pandas as pd
-from src.ingestion import load_live_data
+from src.ingestion import load_live_data_async
 from src.validation import validate_data
 from src.kpi_engine import calculate_kpis
 from src.report_generator import generate_visuals, generate_pdf, send_email
 import asyncio
+import os
 
 # Try to use advanced ML engine, fallback to basic if not available
 try:
@@ -23,8 +24,13 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 async def run_pipeline_async():
     """Async version for AI integration"""
     try:
+        # Create reports directory if it doesn't exist
+        os.makedirs("reports/pdf", exist_ok=True)
+        os.makedirs("reports", exist_ok=True)
+        
         # 1. Ingestion (Historical + Live)
-        df, raw_live_data, engine = load_live_data()
+        logging.info("Loading production data...")
+        df, raw_live_data, engine = await load_live_data_async()
         
         # 2. Archive to DB
         if raw_live_data:
@@ -36,9 +42,11 @@ async def run_pipeline_async():
                 logging.warning(f"DB Archive failed, but continuing report: {db_e}")
 
         # 3. Validation
+        logging.info("Validating data...")
         df = validate_data(df)
         
         # 4. KPI Calculations
+        logging.info("Calculating KPIs...")
         summary, machine_stats = calculate_kpis(df)
         
         # 5. Advanced ML Analysis
@@ -60,7 +68,7 @@ async def run_pipeline_async():
                 kpi_summary = {
                     'total_units': summary.get('Total Units', 0),
                     'total_defects': summary.get('Total Defects', 0),
-                    'yield_percentage': summary.get('Overall Yield %', 0),
+                    'yield_percentage': summary.get('Yield %', 0),
                     'avg_downtime': summary.get('Avg Downtime (min)', 0)
                 }
                 
@@ -68,7 +76,7 @@ async def run_pipeline_async():
                     ml_insights,
                     df.to_dict('records')[:20],  # Sample data
                     kpi_summary,
-                    machine_stats
+                    machine_stats.to_dict('records') if hasattr(machine_stats, 'to_dict') else machine_stats
                 )
                 
                 # Add AI insights to summary
@@ -90,9 +98,15 @@ async def run_pipeline_async():
                 logging.warning(f"AI insights generation failed: {ai_e}")
             
             # Generate visualizations
+            logging.info("Generating visualizations...")
             charts = generate_visuals(df)
-            if ml_chart_path:
+            
+            # CRITICAL FIX: Add the ML chart with the correct filename
+            if ml_chart_path and os.path.exists(ml_chart_path):
                 charts.append(ml_chart_path)
+                logging.info(f"Added ML chart: {ml_chart_path}")
+            else:
+                logging.warning("ML chart not generated")
                 
         else:
             # Basic ML fallback
@@ -102,15 +116,27 @@ async def run_pipeline_async():
             summary['ML Predicted Downtime'] = f"{pred_downtime:.1f} min"
             summary['ML Confidence'] = f"{pred_score:.2f}"
             
+            logging.info("Generating visualizations...")
             charts = generate_visuals(df)
-            if ml_chart_path:
+            
+            if ml_chart_path and os.path.exists(ml_chart_path):
                 charts.append(ml_chart_path)
+                logging.info(f"Added ML chart: {ml_chart_path}")
 
         # 6. Generate PDF Report
-        generate_pdf(summary, charts, "reports/pdf/Report.pdf")
+        logging.info("Generating PDF report...")
+        report_path = "reports/pdf/Report.pdf"
+        generate_pdf(summary, charts, report_path)
+        
+        if os.path.exists(report_path):
+            logging.info(f"✅ PDF report successfully generated: {report_path}")
+        else:
+            logging.error("❌ PDF report generation failed - file does not exist")
         
         # 7. Email
-        send_email("reports/pdf/Report.pdf")
+        logging.info("Attempting to send email...")
+        send_email(report_path)
+        
         logging.info("✅ Pipeline execution complete with ML & AI insights.")
 
     except Exception as e:
