@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        /* ... (all existing styles remain exactly the same) ... */
         * {
             margin: 0;
             padding: 0;
@@ -193,6 +194,18 @@
             box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
         }
         
+        .btn-secondary {
+            background: #8b5cf6;
+            border-color: #8b5cf6;
+            color: white;
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: #7c3aed;
+            border-color: #7c3aed;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+        
         select {
             background: var(--bg-card);
             color: var(--text-primary);
@@ -306,6 +319,8 @@
         .kpi-card:nth-child(3) { --card-color: var(--success); }
         .kpi-card:nth-child(4) { --card-color: var(--warning); }
         .kpi-card.ml-card { --card-color: var(--info); }
+        .kpi-card.tenant-card { --card-color: #8b5cf6; }
+        .kpi-card.dl-card { --card-color: #06b6d4; }
         
         .kpi-card.secondary:nth-child(1) { --card-color: #8b5cf6; }
         .kpi-card.secondary:nth-child(2) { --card-color: #06b6d4; }
@@ -786,7 +801,9 @@
         }
         
         /* ML Chart - Full Width */
-        .chart-container.ml-chart {
+        .chart-container.ml-chart,
+        .chart-container.dl-chart,
+        .chart-container.forecast-chart {
             grid-column: 1 / -1;
         }
         
@@ -821,19 +838,343 @@
                 transform: translateY(0);
             }
         }
+        
+        /* NEW: Tenant Management Styles */
+        .tenant-management {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        
+        .tenant-management-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .tenant-management-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .tenant-stats {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .tenant-stat-card {
+            background: var(--bg-secondary);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            flex: 1;
+            text-align: center;
+        }
+        
+        .tenant-stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+            background: linear-gradient(135deg, #8b5cf6, #06b6d4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .tenant-stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .tenants-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+        }
+        
+        .tenant-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.2s;
+        }
+        
+        .tenant-card:hover {
+            border-color: #8b5cf6;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+        
+        .tenant-card.active {
+            border-color: var(--success);
+        }
+        
+        .tenant-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .tenant-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 16px;
+        }
+        
+        .tenant-id {
+            font-size: 12px;
+            color: var(--text-muted);
+            background: var(--bg-tertiary);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        
+        .tenant-details {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+        
+        .tenant-details p {
+            margin-bottom: 4px;
+        }
+        
+        .tenant-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        
+        .tenant-action-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .tenant-action-btn:hover {
+            background: rgba(139, 92, 246, 0.1);
+            border-color: #8b5cf6;
+            color: #8b5cf6;
+        }
+        
+        /* NEW: Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+        
+        .modal {
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: modalSlideIn 0.3s ease;
+        }
+        
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .modal-header {
+            padding: 24px 24px 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 20px;
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+        }
+        
+        .modal-close:hover {
+            background: var(--bg-secondary);
+            color: var(--danger);
+        }
+        
+        .modal-body {
+            padding: 24px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        
+        .modal-footer {
+            padding: 16px 24px 24px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+        
+        /* NEW: DL Forecast Styles */
+        .dl-forecast-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        
+        .forecast-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .forecast-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .forecast-models {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .model-badge {
+            background: rgba(6, 182, 212, 0.1);
+            border: 1px solid #06b6d4;
+            color: #06b6d4;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .forecast-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .forecast-stat {
+            background: var(--bg-secondary);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+        
+        .forecast-stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        
+        .forecast-stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <div class="header-left">
-                <h1>Manufacturing Analytics</h1>
+                <h1>Manufacturing Analytics Dashboard</h1>
                 <div class="status-indicator">
                     <div class="status-dot" id="statusDot"></div>
                     <span class="status-text" id="statusText">Connecting...</span>
                 </div>
                 <span class="update-info" id="updateInfo">Initializing...</span>
             </div>
+            <select id="tenantSelector" style="display: none;" onchange="handleTenantChange()">
+                <option value="default">Default Tenant</option>
+            </select>
         </header>
 
         <div class="controls">
@@ -844,6 +1185,8 @@
                 <option value="30" selected>Last 30 Days</option>
             </select>
             <button class="btn btn-primary" onclick="getAIInsights()">Generate AI Insights</button>
+            <button class="btn btn-secondary" onclick="showTenantModal()">Manage Tenants</button>
+            <button class="btn" onclick="generateDLForecast()">Run DL Forecast</button>
             <button class="btn" onclick="downloadReport()">Download Report</button>
             <button class="btn" onclick="refreshDashboard()">Refresh Dashboard</button>
             <label class="auto-refresh-toggle">
@@ -900,15 +1243,15 @@
                         <div class="kpi-value-sm" id="performanceGradeKpi">--</div>
                         <div class="kpi-subtitle">Overall system rating</div>
                     </div>
-                    <div class="kpi-card secondary">
-                        <div class="kpi-label">OEE Score</div>
-                        <div class="kpi-value-sm" id="oeeScore">--%</div>
-                        <div class="kpi-subtitle">Overall Equipment Effectiveness</div>
+                    <div class="kpi-card tenant-card">
+                        <div class="kpi-label">Active Tenants</div>
+                        <div class="kpi-value-sm" id="activeTenants">--</div>
+                        <div class="kpi-subtitle">Plants/Factories</div>
                     </div>
-                    <div class="kpi-card secondary">
-                        <div class="kpi-label">Energy Consumption</div>
-                        <div class="kpi-value-sm" id="energyConsumption">-- kWh</div>
-                        <div class="kpi-subtitle">Total energy usage</div>
+                    <div class="kpi-card dl-card">
+                        <div class="kpi-label">DL Confidence</div>
+                        <div class="kpi-value-sm" id="dlConfidence">--%</div>
+                        <div class="kpi-subtitle">Deep Learning Model</div>
                     </div>
                 </div>
             </div>
@@ -926,7 +1269,23 @@
             </div>
         </div>
         
-        <!-- Live Machine Status (NEW) -->
+        <!-- NEW: Tenant Management Section -->
+        <div class="tenant-management" id="tenantManagement" style="display: none;">
+            <div class="tenant-management-header">
+                <h3>Tenant Management</h3>
+                <button class="btn btn-secondary" onclick="showCreateTenantModal()">
+                    + Create New Tenant
+                </button>
+            </div>
+            <div class="tenant-stats" id="tenantStats">
+                <!-- Will be populated by JavaScript -->
+            </div>
+            <div class="tenants-list" id="tenantsList">
+                <!-- Will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <!-- Live Machine Status -->
         <div class="live-machines-section">
             <div class="live-machines-header">
                 <h3>Live Machine Status</h3>
@@ -937,6 +1296,24 @@
             </div>
             <div class="machine-grid" id="machineList">
                 <p style="color: var(--text-secondary); text-align: center; grid-column: 1 / -1;">Loading machine data...</p>
+            </div>
+        </div>
+        
+        <!-- NEW: DL Forecast Section -->
+        <div class="dl-forecast-container" id="dlForecastContainer" style="display: none;">
+            <div class="forecast-header">
+                <h3>Deep Learning Forecast</h3>
+                <div class="forecast-models">
+                    <span class="model-badge">LSTM</span>
+                    <span class="model-badge">Prophet</span>
+                    <span class="model-badge">Ensemble</span>
+                </div>
+            </div>
+            <div class="forecast-stats" id="forecastStats">
+                <!-- Will be populated by JavaScript -->
+            </div>
+            <div class="chart-container forecast-chart">
+                <canvas id="forecastChart"></canvas>
             </div>
         </div>
         
@@ -953,24 +1330,112 @@
         </div>
     </div>
 
+    <!-- NEW: Modal for Creating Tenant -->
+    <div class="modal-overlay" id="createTenantModal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Create New Tenant</h3>
+                <button class="modal-close" onclick="closeCreateTenantModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="tenantId">Tenant ID (Unique)</label>
+                    <input type="text" id="tenantId" placeholder="e.g., plant_chicago">
+                </div>
+                <div class="form-group">
+                    <label for="tenantName">Tenant Name</label>
+                    <input type="text" id="tenantName" placeholder="e.g., Chicago Manufacturing Plant">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="plantLocation">Plant Location</label>
+                        <input type="text" id="plantLocation" placeholder="e.g., Chicago, IL, USA">
+                    </div>
+                    <div class="form-group">
+                        <label for="timezone">Timezone</label>
+                        <select id="timezone">
+                            <option value="UTC">UTC</option>
+                            <option value="America/Chicago">America/Chicago</option>
+                            <option value="America/New_York">America/New_York</option>
+                            <option value="Europe/London">Europe/London</option>
+                            <option value="Asia/Tokyo">Asia/Tokyo</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="tenantConfig">Configuration (JSON)</label>
+                    <textarea id="tenantConfig" rows="4" placeholder='{"key": "value"}'></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeCreateTenantModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="createTenant()">Create Tenant</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: Modal for Tenant Details -->
+    <div class="modal-overlay" id="tenantDetailsModal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="tenantDetailsTitle">Tenant Details</h3>
+                <button class="modal-close" onclick="closeTenantDetailsModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Tenant ID</label>
+                    <input type="text" id="detailsTenantId" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Tenant Name</label>
+                    <input type="text" id="detailsTenantName" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Plant Location</label>
+                    <input type="text" id="detailsPlantLocation" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Timezone</label>
+                    <input type="text" id="detailsTimezone" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Created At</label>
+                    <input type="text" id="detailsCreatedAt" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Status</label>
+                    <input type="text" id="detailsStatus" readonly>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeTenantDetailsModal()">Close</button>
+                <button class="btn btn-primary" onclick="switchToTenant()">Switch to this Tenant</button>
+                <button class="btn btn-secondary" onclick="migrateLegacyData()">Migrate Legacy Data</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_BASE = window.location.origin.replace(':8080', ':8000');
         let ws = null;
         let productionChart = null;
         let machineChart = null;
+        let forecastChart = null;
         let refreshTimer = null;
         let countdownInterval = null;
         let autoRefreshEnabled = true;
+        let currentTenant = 'default';
+        let tenants = [];
         
         const REFRESH_INTERVAL = 120000; // 2 minutes
         
-        // ADDED: Track cumulative production for the day
+        // Track cumulative production
         let dailyProductionAccumulator = {
             machines: {},
             lastReset: new Date().toDateString()
         };
 
-        // WebSocket connection
+        // Initialize WebSocket
         function connectWebSocket() {
             try {
                 ws = new WebSocket(`${API_BASE.replace('http', 'ws')}/ws`);
@@ -1024,20 +1489,17 @@
         function handleLiveUpdate(liveData) {
             console.log('Received live update:', liveData);
             
-            // ADDED: Don't process updates if auto-refresh is disabled
             if (!autoRefreshEnabled) {
                 console.log('Auto-refresh disabled - ignoring live update');
                 return;
             }
             
-            // ADDED: Reset accumulator if it's a new day
             const today = new Date().toDateString();
             if (dailyProductionAccumulator.lastReset !== today) {
                 dailyProductionAccumulator.machines = {};
                 dailyProductionAccumulator.lastReset = today;
             }
             
-            // ADDED: Accumulate production data for each machine
             if (liveData && Array.isArray(liveData)) {
                 liveData.forEach(record => {
                     const machineId = record.machine_id;
@@ -1050,21 +1512,17 @@
                         };
                     }
                     
-                    // Add to cumulative totals
                     dailyProductionAccumulator.machines[machineId].units += record.units_produced || 0;
                     dailyProductionAccumulator.machines[machineId].defects += record.defective_units || 0;
                     dailyProductionAccumulator.machines[machineId].downtime += record.downtime_min || 0;
                 });
                 
-                // ADDED: Update production chart with accumulated data
                 updateProductionChartWithAccumulatedData();
             }
             
-            // Update live timestamp
             const timeElement = document.getElementById('liveUpdateTime');
             timeElement.textContent = `Updated ${new Date().toLocaleTimeString()}`;
             
-            // Update live machines display
             updateLiveMachines(liveData);
         }
 
@@ -1101,14 +1559,12 @@
             }).join('');
         }
         
-        // ADDED: Update production chart with accumulated data
         function updateProductionChartWithAccumulatedData() {
             if (!productionChart) return;
             
             const machines = Object.keys(dailyProductionAccumulator.machines);
             if (machines.length === 0) return;
             
-            // Calculate totals across all machines
             let totalUnits = 0;
             let totalDefects = 0;
             
@@ -1117,11 +1573,9 @@
                 totalDefects += dailyProductionAccumulator.machines[machineId].defects;
             });
             
-            // Get current timestamp for x-axis
             const now = new Date();
             const timeLabel = now.toLocaleTimeString();
             
-            // If chart is empty, initialize it
             if (!productionChart.data.datasets[0].data || productionChart.data.datasets[0].data.length === 0) {
                 productionChart.data.labels = [timeLabel];
                 productionChart.data.datasets[0].data = [totalUnits];
@@ -1129,14 +1583,12 @@
                     productionChart.data.datasets[1].data = [totalDefects];
                 }
             } else {
-                // Add new data point
                 productionChart.data.labels.push(timeLabel);
                 productionChart.data.datasets[0].data.push(totalUnits);
                 if (productionChart.data.datasets[1]) {
                     productionChart.data.datasets[1].data.push(totalDefects);
                 }
                 
-                // Keep only last 20 points to prevent chart overcrowding
                 const maxPoints = 20;
                 if (productionChart.data.labels.length > maxPoints) {
                     productionChart.data.labels = productionChart.data.labels.slice(-maxPoints);
@@ -1146,7 +1598,7 @@
                 }
             }
             
-            productionChart.update('none'); // Update without animation
+            productionChart.update('none');
         }
 
         async function loadDashboardData() {
@@ -1154,7 +1606,6 @@
                 console.log('Loading dashboard data...');
                 const days = document.getElementById('timeRange').value;
                 
-                // Fetch all data in parallel with error handling
                 const [prodResponse, kpiResponse, machineResponse, mlResponse] = await Promise.allSettled([
                     fetch(`${API_BASE}/api/production?days=${days}`),
                     fetch(`${API_BASE}/api/kpis?days=${days}`),
@@ -1162,31 +1613,26 @@
                     fetch(`${API_BASE}/api/ml/prediction?days=${days}`)
                 ]);
 
-                // Handle production data
                 let prodData = [];
                 if (prodResponse.status === 'fulfilled' && prodResponse.value.ok) {
                     prodData = await prodResponse.value.json();
                 }
 
-                // Handle KPI data
                 let kpiData = {};
                 if (kpiResponse.status === 'fulfilled' && kpiResponse.value.ok) {
                     kpiData = await kpiResponse.value.json();
                 }
 
-                // Handle machine data
                 let machineData = [];
                 if (machineResponse.status === 'fulfilled' && machineResponse.value.ok) {
                     machineData = await machineResponse.value.json();
                 }
 
-                // Handle ML data
                 let mlData = null;
                 if (mlResponse.status === 'fulfilled' && mlResponse.value.ok) {
                     mlData = await mlResponse.value.json();
                 }
 
-                // Update dashboard components
                 updateKPIs(kpiData, machineData, mlData);
                 updateCharts(prodData, machineData, mlData);
                 
@@ -1216,7 +1662,6 @@
                 (kpiData.total_units / parseInt(document.getElementById('timeRange').value)).toFixed(0) : '--';
             document.getElementById('avgDailyOutput').textContent = avgDaily;
             
-            // Top machine
             if (machineData && machineData.length > 0) {
                 const topMachine = machineData.reduce((max, m) => 
                     m.units_produced > max.units_produced ? m : max
@@ -1224,7 +1669,6 @@
                 document.getElementById('topMachineKpi').textContent = topMachine.machine_id;
             }
             
-            // Performance grade (simplified)
             const yieldPct = kpiData.yield_percentage || 0;
             let grade = 'F';
             if (yieldPct >= 98) grade = 'A';
@@ -1233,16 +1677,11 @@
             else if (yieldPct >= 85) grade = 'D';
             document.getElementById('performanceGradeKpi').textContent = grade;
             
-            // OEE Score (simplified: Availability * Performance * Quality)
-            const availability = kpiData.efficiency || 85;
-            const performance = 95; // Assumed
-            const quality = yieldPct;
-            const oee = (availability * performance * quality) / 10000;
-            document.getElementById('oeeScore').textContent = `${oee.toFixed(1)}%`;
+            // Tenant stats (will be updated by loadTenants)
+            document.getElementById('activeTenants').textContent = tenants.filter(t => t.is_active).length;
             
-            // Energy (estimated)
-            const energyEstimate = (kpiData.total_units || 0) * 0.15; // 0.15 kWh per unit
-            document.getElementById('energyConsumption').textContent = `${energyEstimate.toFixed(0)} kWh`;
+            // DL Confidence (placeholder - will be updated by DL forecast)
+            document.getElementById('dlConfidence').textContent = '--';
         }
 
         function updateCharts(prodData, machineData, mlData) {
@@ -1399,7 +1838,6 @@
         }
 
         function switchTab(tabName) {
-            // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
             });
@@ -1407,7 +1845,6 @@
                 btn.classList.remove('active');
             });
             
-            // Show selected tab
             document.getElementById(`tab-${tabName}`).classList.add('active');
             event.target.classList.add('active');
         }
@@ -1471,12 +1908,10 @@
                     const riskLevel = mlInsights?.risk_level || 'Low';
                     const riskClass = getRiskClass(riskLevel);
                     
-                    // Update risk badge
                     riskBadge.textContent = `${riskLevel} Risk`;
                     riskBadge.className = `risk-badge ${riskClass}`;
                     riskBadge.style.display = 'block';
                     
-                    // Create tabbed interface
                     const html = `
                         <div class="ai-tabs">
                             <div class="tabs-header">
@@ -1628,11 +2063,449 @@
             }
         });
 
+        // ========== NEW: TENANT MANAGEMENT FUNCTIONS ==========
+        
+        async function loadTenants() {
+            try {
+                const response = await fetch(`${API_BASE}/api/tenants/list?active_only=true`);
+                const data = await response.json();
+                
+                if (data.tenants) {
+                    tenants = data.tenants;
+                    updateTenantSelector();
+                    updateTenantManagementUI();
+                    updateTenantKPI();
+                }
+            } catch (error) {
+                console.error('Failed to load tenants:', error);
+            }
+        }
+        
+        function updateTenantSelector() {
+            const selector = document.getElementById('tenantSelector');
+            selector.innerHTML = '<option value="default">Default Tenant</option>';
+            
+            tenants.forEach(tenant => {
+                const option = document.createElement('option');
+                option.value = tenant.tenant_id;
+                option.textContent = tenant.tenant_name;
+                if (tenant.tenant_id === currentTenant) {
+                    option.selected = true;
+                }
+                selector.appendChild(option);
+            });
+            
+            // Show selector only if we have tenants
+            selector.style.display = tenants.length > 0 ? 'block' : 'none';
+        }
+        
+        function updateTenantManagementUI() {
+            const container = document.getElementById('tenantManagement');
+            const statsContainer = document.getElementById('tenantStats');
+            const listContainer = document.getElementById('tenantsList');
+            
+            // Show tenant management section
+            container.style.display = 'block';
+            
+            // Update stats
+            const activeTenants = tenants.filter(t => t.is_active).length;
+            const totalTenants = tenants.length;
+            const inactiveTenants = totalTenants - activeTenants;
+            
+            statsContainer.innerHTML = `
+                <div class="tenant-stat-card">
+                    <div class="tenant-stat-value">${totalTenants}</div>
+                    <div class="tenant-stat-label">Total Tenants</div>
+                </div>
+                <div class="tenant-stat-card">
+                    <div class="tenant-stat-value">${activeTenants}</div>
+                    <div class="tenant-stat-label">Active Tenants</div>
+                </div>
+                <div class="tenant-stat-card">
+                    <div class="tenant-stat-value">${inactiveTenants}</div>
+                    <div class="tenant-stat-label">Inactive Tenants</div>
+                </div>
+            `;
+            
+            // Update tenants list
+            listContainer.innerHTML = tenants.map(tenant => `
+                <div class="tenant-card ${tenant.is_active ? 'active' : ''}">
+                    <div class="tenant-card-header">
+                        <div class="tenant-name">${tenant.tenant_name}</div>
+                        <div class="tenant-id">${tenant.tenant_id}</div>
+                    </div>
+                    <div class="tenant-details">
+                        <p><strong>Location:</strong> ${tenant.plant_location || 'Not specified'}</p>
+                        <p><strong>Timezone:</strong> ${tenant.timezone}</p>
+                        <p><strong>Status:</strong> ${tenant.is_active ? 'Active' : 'Inactive'}</p>
+                        <p><strong>Created:</strong> ${new Date(tenant.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <div class="tenant-actions">
+                        <button class="tenant-action-btn" onclick="viewTenantDetails('${tenant.tenant_id}')">View</button>
+                        <button class="tenant-action-btn" onclick="switchToTenantUI('${tenant.tenant_id}')">Switch</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function updateTenantKPI() {
+            document.getElementById('activeTenants').textContent = tenants.filter(t => t.is_active).length;
+        }
+        
+        function showTenantModal() {
+            document.getElementById('tenantManagement').style.display = 'block';
+        }
+        
+        function showCreateTenantModal() {
+            document.getElementById('createTenantModal').style.display = 'flex';
+        }
+        
+        function closeCreateTenantModal() {
+            document.getElementById('createTenantModal').style.display = 'none';
+            // Reset form
+            document.getElementById('tenantId').value = '';
+            document.getElementById('tenantName').value = '';
+            document.getElementById('plantLocation').value = '';
+            document.getElementById('timezone').value = 'UTC';
+            document.getElementById('tenantConfig').value = '';
+        }
+        
+        async function createTenant() {
+            const tenantId = document.getElementById('tenantId').value.trim();
+            const tenantName = document.getElementById('tenantName').value.trim();
+            const plantLocation = document.getElementById('plantLocation').value.trim();
+            const timezone = document.getElementById('timezone').value;
+            const configText = document.getElementById('tenantConfig').value.trim();
+            
+            if (!tenantId || !tenantName) {
+                showMessage('Tenant ID and Name are required', 'error');
+                return;
+            }
+            
+            let config = {};
+            try {
+                if (configText) {
+                    config = JSON.parse(configText);
+                }
+            } catch (e) {
+                showMessage('Invalid JSON configuration', 'error');
+                return;
+            }
+            
+            const tenantData = {
+                tenant_id: tenantId,
+                tenant_name: tenantName,
+                plant_location: plantLocation || null,
+                timezone: timezone,
+                config: config
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/tenants/create`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(tenantData)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage(`Tenant "${tenantName}" created successfully`, 'success');
+                    closeCreateTenantModal();
+                    await loadTenants(); // Refresh the list
+                } else {
+                    showMessage(result.detail || 'Failed to create tenant', 'error');
+                }
+            } catch (error) {
+                showMessage('Failed to create tenant: ' + error.message, 'error');
+            }
+        }
+        
+        async function viewTenantDetails(tenantId) {
+            try {
+                const response = await fetch(`${API_BASE}/api/tenants/list`);
+                const data = await response.json();
+                
+                const tenant = data.tenants?.find(t => t.tenant_id === tenantId);
+                if (!tenant) {
+                    showMessage('Tenant not found', 'error');
+                    return;
+                }
+                
+                // Populate modal with tenant details
+                document.getElementById('tenantDetailsTitle').textContent = tenant.tenant_name;
+                document.getElementById('detailsTenantId').value = tenant.tenant_id;
+                document.getElementById('detailsTenantName').value = tenant.tenant_name;
+                document.getElementById('detailsPlantLocation').value = tenant.plant_location || 'Not specified';
+                document.getElementById('detailsTimezone').value = tenant.timezone;
+                document.getElementById('detailsCreatedAt').value = new Date(tenant.created_at).toLocaleString();
+                document.getElementById('detailsStatus').value = tenant.is_active ? 'Active' : 'Inactive';
+                
+                // Store current tenant ID for modal actions
+                document.getElementById('tenantDetailsModal').dataset.tenantId = tenantId;
+                document.getElementById('tenantDetailsModal').style.display = 'flex';
+            } catch (error) {
+                showMessage('Failed to load tenant details', 'error');
+            }
+        }
+        
+        function closeTenantDetailsModal() {
+            document.getElementById('tenantDetailsModal').style.display = 'none';
+        }
+        
+        function switchToTenantUI(tenantId) {
+            currentTenant = tenantId;
+            updateTenantSelector();
+            
+            // Update header to show current tenant
+            const headerTitle = document.querySelector('h1');
+            const tenant = tenants.find(t => t.tenant_id === tenantId);
+            if (tenant) {
+                headerTitle.textContent = `${tenant.tenant_name} - Analytics Dashboard`;
+            }
+            
+            // Refresh dashboard data for selected tenant
+            loadDashboardData();
+            showMessage(`Switched to tenant: ${tenant?.tenant_name || tenantId}`, 'success');
+        }
+        
+        async function switchToTenant() {
+            const tenantId = document.getElementById('tenantDetailsModal').dataset.tenantId;
+            switchToTenantUI(tenantId);
+            closeTenantDetailsModal();
+        }
+        
+        async function migrateLegacyData() {
+            const tenantId = document.getElementById('tenantDetailsModal').dataset.tenantId;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/tenants/${tenantId}/migrate-legacy-data`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage(result.message || 'Legacy data migrated successfully', 'success');
+                } else {
+                    showMessage(result.detail || 'Failed to migrate legacy data', 'error');
+                }
+            } catch (error) {
+                showMessage('Failed to migrate legacy data: ' + error.message, 'error');
+            }
+        }
+        
+        function handleTenantChange() {
+            const tenantId = document.getElementById('tenantSelector').value;
+            if (tenantId === 'default') {
+                currentTenant = 'default';
+                document.querySelector('h1').textContent = 'Manufacturing Analytics Dashboard';
+            } else {
+                switchToTenantUI(tenantId);
+            }
+        }
+
+        // ========== NEW: DEEP LEARNING FORECAST FUNCTIONS ==========
+        
+        async function generateDLForecast() {
+            const btn = event.target;
+            const container = document.getElementById('dlForecastContainer');
+            const statsContainer = document.getElementById('forecastStats');
+            
+            container.style.display = 'block';
+            
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Running DL Forecast...';
+            }
+            
+            statsContainer.innerHTML = `
+                <div class="forecast-stat">
+                    <div class="forecast-stat-value">--</div>
+                    <div class="forecast-stat-label">LSTM Prediction</div>
+                </div>
+                <div class="forecast-stat">
+                    <div class="forecast-stat-value">--</div>
+                    <div class="forecast-stat-label">Prophet Prediction</div>
+                </div>
+                <div class="forecast-stat">
+                    <div class="forecast-stat-value">--</div>
+                    <div class="forecast-stat-label">Ensemble Average</div>
+                </div>
+                <div class="forecast-stat">
+                    <div class="forecast-stat-value">--%</div>
+                    <div class="forecast-stat-label">Model Confidence</div>
+                </div>
+            `;
+            
+            try {
+                const days = document.getElementById('timeRange').value;
+                const response = await fetch(`${API_BASE}/api/forecasting/advanced?days=${days}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.message || 'DL forecast unavailable');
+                }
+                
+                // Update forecast stats
+                const forecastStats = document.querySelectorAll('.forecast-stat-value');
+                if (forecastStats.length >= 4) {
+                    forecastStats[0].textContent = data.lstm_prediction ? 
+                        `${data.lstm_prediction.toFixed(1)} min` : '--';
+                    forecastStats[1].textContent = data.prophet_prediction ? 
+                        `${data.prophet_prediction.toFixed(1)} min` : '--';
+                    forecastStats[2].textContent = data.ensemble_prediction ? 
+                        `${data.ensemble_prediction.toFixed(1)} min` : '--';
+                    forecastStats[3].textContent = data.model_confidence_score ? 
+                        `${(data.model_confidence_score * 100).toFixed(1)}%` : '--';
+                    
+                    // Update DL confidence in KPI
+                    document.getElementById('dlConfidence').textContent = 
+                        data.model_confidence_score ? `${(data.model_confidence_score * 100).toFixed(1)}%` : '--';
+                }
+                
+                // Create forecast chart
+                createForecastChart(data);
+                
+                showMessage('Deep Learning forecast generated successfully', 'success');
+                
+            } catch (error) {
+                console.error('DL forecast error:', error);
+                statsContainer.innerHTML = `
+                    <div class="forecast-stat" style="grid-column: 1 / -1; text-align: center;">
+                        <div class="forecast-stat-value" style="color: var(--danger);">DL Forecast Unavailable</div>
+                        <div class="forecast-stat-label">${error.message || 'Failed to generate forecast'}</div>
+                    </div>
+                `;
+                showMessage('Failed to generate DL forecast', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Run DL Forecast';
+                }
+            }
+        }
+        
+function createForecastChart(forecastData) {
+    const ctx = document.getElementById('forecastChart').getContext('2d');
+    
+    if (forecastChart) {
+        forecastChart.destroy();
+    }
+    
+    // Use actual data from API
+    const historicalData = forecastData.historical_data || [];
+    const lstmForecast = forecastData.lstm_forecast || [];
+    const prophetForecast = forecastData.prophet_forecast || [];
+    const ensembleForecast = forecastData.ensemble_forecast || [];
+    const forecastPeriods = forecastData.forecast_periods || 7;
+    
+    const labels = [
+        ...historicalData.map((_, i) => `Day ${i + 1}`),
+        ...Array(forecastPeriods).fill().map((_, i) => `F ${i + 1}`)
+    ];
+    
+    forecastChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Historical Downtime',
+                    data: [...historicalData, ...Array(forecastPeriods).fill(null)],
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: 'LSTM Forecast',
+                    data: [...Array(historicalData.length - 1).fill(null), 
+                           historicalData[historicalData.length - 1], 
+                           ...lstmForecast],
+                    borderColor: '#10b981',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    tension: 0.4
+                },
+                {
+                    label: 'Prophet Forecast',
+                    data: [...Array(historicalData.length - 1).fill(null), 
+                           historicalData[historicalData.length - 1], 
+                           ...prophetForecast],
+                    borderColor: '#f59e0b',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    tension: 0.4
+                },
+                {
+                    label: 'Ensemble Forecast',
+                    data: [...Array(historicalData.length - 1).fill(null), 
+                           historicalData[historicalData.length - 1], 
+                           ...ensembleForecast],
+                    borderColor: '#8b5cf6',
+                    borderWidth: 3,
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            animation: { duration: 1000 },
+            plugins: {
+                legend: { 
+                    display: true,
+                    labels: { 
+                        color: '#9ca3af',
+                        padding: 15,
+                        font: { size: 12 }
+                    }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
+                }
+            },
+            scales: {
+                y: { 
+                    beginAtZero: true,
+                    grid: { color: '#2a2f4a' },
+                    ticks: { color: '#9ca3af' },
+                    title: {
+                        display: true,
+                        text: 'Downtime (minutes)',
+                        color: '#9ca3af'
+                    }
+                },
+                x: { 
+                    grid: { display: false },
+                    ticks: { color: '#9ca3af' },
+                    title: {
+                        display: true,
+                        text: 'Time Period',
+                        color: '#9ca3af'
+                    }
+                }
+            }
+        }
+    });
+}
+
         // Initialize on page load
         window.onload = async () => {
             console.log('Initializing Manufacturing Analytics Dashboard...');
             connectWebSocket();
+            
+            // Load tenants first
+            await loadTenants();
+            
+            // Then load dashboard data
             await loadDashboardData();
+            
             startRefreshTimer();
             console.log('Dashboard initialized successfully');
         };

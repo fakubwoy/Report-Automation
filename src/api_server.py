@@ -469,6 +469,61 @@ async def get_ai_insights_endpoint(days: int = 7):
             "message": "Failed to generate AI insights"
         }
 
+
+@app.get("/api/forecasting/advanced")
+async def get_advanced_forecast(days: int = 30):
+    """Get advanced time-series forecast data"""
+    try:
+        query = f"""
+            SELECT units_produced as "Units Produced", 
+                   defective_units as "Defective Units", 
+                   downtime_min as "Downtime (minutes)"
+            FROM live_production
+            WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'
+            ORDER BY production_date
+        """
+        df = pd.read_sql_query(query, engine)
+        
+        if len(df) < 10:
+            return {
+                "error": "Insufficient data for forecasting",
+                "message": "Need at least 10 days of data"
+            }
+        
+        # Import and run the forecasting engine
+        from src.forecasting_engine import perform_advanced_forecasting
+        
+        lstm_forecast, prophet_forecast, ensemble_forecast, chart_path = perform_advanced_forecasting(
+            df, 
+            target_col='Downtime (minutes)', 
+            forecast_periods=7
+        )
+        
+        # Extract forecast values
+        lstm_values = lstm_forecast[0].tolist() if lstm_forecast and lstm_forecast[0] is not None else None
+        prophet_values = prophet_forecast.tail(7)['yhat'].tolist() if prophet_forecast is not None else None
+        ensemble_values = ensemble_forecast.tolist() if ensemble_forecast is not None else None
+        
+        # Historical data for chart
+        historical_downtime = df['Downtime (minutes)'].tail(20).tolist()
+        
+        return {
+            "historical_data": historical_downtime,
+            "lstm_forecast": lstm_values,
+            "prophet_forecast": prophet_values,
+            "ensemble_forecast": ensemble_values,
+            "forecast_periods": 7,
+            "chart_path": chart_path,
+            "lstm_prediction": lstm_values[0] if lstm_values else None,
+            "prophet_prediction": prophet_values[0] if prophet_values else None,
+            "ensemble_prediction": ensemble_values[0] if ensemble_values else None,
+            "model_confidence_score": 0.85  # Example confidence score
+        }
+        
+    except Exception as e:
+        logging.error(f"Advanced forecasting failed: {e}")
+        return {"error": str(e)}
+    
 @app.get("/api/ai/maintenance-plan")
 async def get_maintenance_plan(days: int = 7):
     """

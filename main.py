@@ -18,6 +18,15 @@ except ImportError:
     ADVANCED_ML_AVAILABLE = False
     logging.warning("Using basic ML engine - advanced features unavailable")
 
+# Try to use advanced forecasting
+try:
+    from src.forecasting_engine import perform_advanced_forecasting
+    FORECASTING_AVAILABLE = True
+    logging.info("Advanced forecasting engine loaded (LSTM/Prophet)")
+except ImportError:
+    FORECASTING_AVAILABLE = False
+    logging.warning("Advanced forecasting unavailable - install tensorflow and prophet")
+
 # Ensure logging is initialized at the top level
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
@@ -107,7 +116,27 @@ async def run_pipeline_async():
                 logging.info(f"Added ML chart: {ml_chart_path}")
             else:
                 logging.warning("ML chart not generated")
-                
+            
+            # Advanced Time-Series Forecasting
+            if FORECASTING_AVAILABLE:
+                try:
+                    logging.info("Running advanced time-series forecasting...")
+                    lstm_forecast, prophet_forecast, ensemble_forecast, forecast_chart = perform_advanced_forecasting(
+                        df, target_col='Downtime (minutes)', forecast_periods=7
+                    )
+                    
+                    if forecast_chart and os.path.exists(forecast_chart):
+                        charts.append(forecast_chart)
+                        logging.info(f"Added forecast chart: {forecast_chart}")
+                        
+                        # Add forecast summary to report
+                        if ensemble_forecast is not None and len(ensemble_forecast) > 0:
+                            summary['Forecast Next Period'] = f"{ensemble_forecast[0]:.1f} min"
+                            summary['7-Day Avg Forecast'] = f"{ensemble_forecast.mean():.1f} min"
+                    
+                except Exception as forecast_e:
+                    logging.warning(f"Forecasting failed but continuing: {forecast_e}")
+                    
         else:
             # Basic ML fallback
             from src.ml_engine import perform_ml_analysis

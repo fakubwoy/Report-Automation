@@ -18,3 +18,13 @@ scikit-learn
 xgboost
 aiohttp
 numpy
+
+# Time-Series Forecasting
+tensorflow>=2.10.0
+keras
+prophet
+cmdstanpy
+
+# Multi-tenant support (already included but noting for clarity)
+# SQLAlchemy for advanced queries
+# PostgreSQL for JSONB support
