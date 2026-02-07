@@ -1,15 +1,17 @@
 # Automated Manufacturing Intelligence System (AMIS)
 
 ## 1. Project Overview
-An enterprise-grade manufacturing analytics platform featuring real-time data collection, AI-powered predictive maintenance, and automated reporting with strategic insights.
+An enterprise-grade manufacturing analytics platform featuring real-time data collection, AI-powered predictive maintenance, advanced time-series forecasting, multi-tenant support, and automated reporting with strategic insights.
 
 **Key Features:**
 - **Real-time Data Collection**: Live OPC-UA industrial PLC data streaming
 - **Advanced ML Engine**: Ensemble models (Random Forest + XGBoost) for predictive maintenance
+- **Time-Series Forecasting**: LSTM and Prophet models with ensemble forecasting
+- **Multi-Tenant Architecture**: Isolated data management for multiple plants/factories
 - **AI Strategic Insights**: Groq-powered analysis for actionable recommendations
 - **Live Dashboard**: WebSocket-powered analytics with interactive visualizations
-- **RESTful API**: Comprehensive REST API with production data, KPIs, ML, and AI endpoints
-- **Database Persistence**: PostgreSQL with 7-day rolling historical data
+- **RESTful API**: Comprehensive REST API with production data, KPIs, ML, AI, and tenant endpoints
+- **Database Persistence**: PostgreSQL with tenant isolation and JSONB support
 - **Automated Reporting**: Scheduled PDF generation with ML insights and AI analysis
 - **Containerized Deployment**: Docker Compose orchestration with health checks
 
@@ -24,9 +26,11 @@ An enterprise-grade manufacturing analytics platform featuring real-time data co
 
 ### 2.2 Application Modules
 * **Data Ingestion** (`src/ingestion.py`): OPC-UA client with retry logic
-* **API Server** (`src/api_server.py`): FastAPI with REST, WebSocket, ML, and AI forecast endpoints
-* **Advanced ML Engine** (`src/ml_engine_advanced.py`): **NEW** - Ensemble models with anomaly detection
-* **AI Insights** (`src/ai_insights.py`): **NEW** - Groq-powered strategic analysis
+* **API Server** (`src/api_server.py`): FastAPI with REST, WebSocket, ML, AI, and multi-tenant endpoints
+* **Tenant Manager** (`src/tenant_manager.py`): Multi-tenant data isolation and management
+* **Advanced ML Engine** (`src/ml_engine_advanced.py`): Ensemble models with anomaly detection
+* **Forecasting Engine** (`src/forecasting_engine.py`): LSTM and Prophet time-series forecasting
+* **AI Insights** (`src/ai_insights.py`): Groq-powered strategic analysis
 * **Validation** (`src/validation.py`): Data integrity checks and anomaly logging
 * **KPI Engine** (`src/kpi_engine.py`): Calculates Yield, Defect Rates, Downtime metrics
 * **Report Generator** (`src/report_generator.py`): PDF reports with ML visualizations
@@ -51,7 +55,9 @@ report_automation/
 │   ├── opcua_simulator.py      # PLC simulator
 │   ├── ingestion.py            # OPC-UA + PostgreSQL
 │   ├── api_server.py           # FastAPI REST + WebSocket + ML + AI
+│   ├── tenant_manager.py       # Multi-tenant data isolation
 │   ├── ml_engine_advanced.py   # Advanced ML engine
+│   ├── forecasting_engine.py   # LSTM/Prophet forecasting
 │   ├── ai_insights.py          # AI insights generator
 │   ├── validation.py           # Data quality checks
 │   ├── kpi_engine.py           # KPI calculations
@@ -70,11 +76,12 @@ report_automation/
 * **Real-time**: WebSockets, asyncio
 * **Data**: Pandas, NumPy
 * **ML**: scikit-learn (Random Forest, Isolation Forest), XGBoost
+* **Forecasting**: TensorFlow/Keras (LSTM), Prophet
 * **AI**: Groq API (Llama 3.3 70B) for strategic insights
 * **Visualizations**: Chart.js (web), Matplotlib, Seaborn (PDF)
 * **Reporting**: FPDF, XlsxWriter
 * **Industrial Protocol**: asyncua (OPC-UA)
-* **Database**: PostgreSQL 15 with SQLAlchemy
+* **Database**: PostgreSQL 15 with SQLAlchemy and JSONB support
 * **Deployment**: Docker Compose
 
 ## 5. Setup and Deployment
@@ -142,17 +149,28 @@ curl http://localhost:8000/api/kpis?days=7
 # Get production data
 curl http://localhost:8000/api/production?days=7
 
-# Advanced ML forecast (NEW)
+# Advanced ML forecast
 curl http://localhost:8000/api/ml/forecast?days=30
 
-# AI strategic insights (NEW)
+# Advanced time-series forecast (LSTM/Prophet)
+curl http://localhost:8000/api/ml/forecast-advanced?days=7
+
+# AI strategic insights
 curl http://localhost:8000/api/ai/insights?days=7
 
-# AI maintenance plan (NEW)
+# AI maintenance plan
 curl http://localhost:8000/api/ai/maintenance-plan?days=7
 
 # Get live machine data
 curl http://localhost:8000/api/machines/live
+
+# Multi-tenant endpoints
+curl http://localhost:8000/api/tenants/list
+curl -X POST http://localhost:8000/api/tenants/create \
+  -H "Content-Type: application/json" \
+  -d '{"tenant_id":"plant_chicago","tenant_name":"Chicago Plant"}'
+curl http://localhost:8000/api/tenants/plant_chicago/kpis?days=7
+curl http://localhost:8000/api/corporate/summary?days=7
 
 # Download latest PDF
 curl http://localhost:8000/api/reports/latest --output report.pdf
@@ -187,7 +205,35 @@ curl http://localhost:8000/api/ml/forecast?days=30
 }
 ```
 
-### 6.2 AI-Powered Strategic Insights 
+### 6.2 Advanced Time-Series Forecasting
+**Models**: LSTM Neural Network + Prophet with ensemble forecasting
+
+**Forecasting Capabilities**:
+- **LSTM**: Deep learning model for complex temporal patterns
+- **Prophet**: Facebook's time-series forecasting for trend and seasonality
+- **Ensemble**: Weighted combination of both models for robust predictions
+- **Multi-period**: Forecasts up to 30 days ahead with confidence intervals
+
+**Forecast Endpoint**: `/api/ml/forecast-advanced`
+```bash
+curl http://localhost:8000/api/ml/forecast-advanced?days=7
+```
+
+**Response Structure**:
+```json
+{
+  "lstm_forecast": [23.5, 24.1, 22.8, ...],
+  "prophet_forecast": [24.2, 23.9, 23.1, ...],
+  "ensemble_forecast": [23.9, 24.0, 22.9, ...],
+  "forecast_periods": 7,
+  "model_info": {
+    "lstm_trained": true,
+    "prophet_trained": true
+  }
+}
+```
+
+### 6.3 AI-Powered Strategic Insights 
 **Powered by**: Groq API (Llama 3.3 70B) - Free tier available
 
 **AI Capabilities**:
@@ -223,18 +269,102 @@ curl http://localhost:8000/api/ai/maintenance-plan?days=7
 }
 ```
 
-### 6.3 Advanced Visualizations
-The ML engine generates comprehensive visualizations (`chart_ml_advanced.png`):
+### 6.4 Advanced Visualizations
+The ML and forecasting engines generate comprehensive visualizations:
 - **Feature Importance**: Top factors affecting downtime
 - **Model Accuracy**: Actual vs predicted scatter plot
 - **Anomaly Detection**: Timeline with flagged anomalies
-- **Downtime Forecast**: 5-period prediction with confidence bands
+- **Downtime Forecast**: Multi-period prediction with confidence bands
+- **LSTM/Prophet Comparison**: Side-by-side model performance
 
 All visualizations are automatically included in PDF reports.
 
-## 7. API Reference
+## 7. Multi-Tenant Architecture
 
-### 7.1 REST Endpoints
+### 7.1 Overview
+Support for multiple isolated plants/factories with data segregation and cross-tenant analytics.
+
+**Key Features**:
+- **Data Isolation**: Separate production data per tenant with PostgreSQL schemas
+- **Machine Registry**: Track machines per plant with capacity and metadata
+- **User Access Control**: Grant users access to specific tenants with roles
+- **Corporate Overview**: Aggregated cross-tenant analytics and reporting
+- **Legacy Migration**: Tools to migrate existing data to tenant structure
+
+### 7.2 Tenant Management Endpoints
+
+**Create Tenant**:
+```bash
+curl -X POST http://localhost:8000/api/tenants/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tenant_id": "plant_chicago",
+    "tenant_name": "Chicago Manufacturing Plant",
+    "plant_location": "Chicago, IL, USA",
+    "timezone": "America/Chicago"
+  }'
+```
+
+**List Tenants**:
+```bash
+curl http://localhost:8000/api/tenants/list?active_only=true
+```
+
+**Register Machine**:
+```bash
+curl -X POST http://localhost:8000/api/tenants/plant_chicago/machines/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "machine_id": "M001",
+    "machine_name": "Assembly Line 1",
+    "machine_type": "Assembly",
+    "capacity": 500
+  }'
+```
+
+**Get Tenant KPIs**:
+```bash
+curl http://localhost:8000/api/tenants/plant_chicago/kpis?days=7
+```
+
+**Corporate Summary** (all tenants):
+```bash
+curl http://localhost:8000/api/corporate/summary?days=7
+```
+
+### 7.3 Tenant Data Submission
+```bash
+curl -X POST http://localhost:8000/api/tenants/plant_chicago/production/submit \
+  -H "Content-Type: application/json" \
+  -d '[{
+    "production_date": "2026-02-07",
+    "machine_id": "M001",
+    "units_produced": 450,
+    "defective_units": 5,
+    "downtime_min": 15,
+    "shift": "Day"
+  }]'
+```
+
+### 7.4 User Access Management
+```bash
+# Grant user access
+curl -X POST http://localhost:8000/api/tenants/plant_chicago/users/grant-access \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "john_doe",
+    "user_name": "John Doe",
+    "user_email": "john@company.com",
+    "role": "manager"
+  }'
+
+# Get user's tenants
+curl http://localhost:8000/api/users/john_doe/tenants
+```
+
+## 8. API Reference
+
+### 8.1 REST Endpoints
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/` | GET | Service information |
@@ -243,41 +373,50 @@ All visualizations are automatically included in PDF reports.
 | `/api/kpis` | GET | Calculated KPIs |
 | `/api/machines` | GET | Machine statistics |
 | `/api/machines/live` | GET | Real-time OPC-UA data |
-| `/api/ml/forecast` | GET | **Ensemble ML downtime prediction** |
-| `/api/ai/insights` | GET | **AI strategic analysis**  |
-| `/api/ai/maintenance-plan` | GET | **AI maintenance schedule**  |
+| `/api/ml/forecast` | GET | Ensemble ML downtime prediction |
+| `/api/ml/forecast-advanced` | GET | LSTM/Prophet time-series forecasting |
+| `/api/ai/insights` | GET | AI strategic analysis |
+| `/api/ai/maintenance-plan` | GET | AI maintenance schedule |
+| `/api/tenants/list` | GET | List all tenants |
+| `/api/tenants/create` | POST | Create new tenant |
+| `/api/tenants/{id}/kpis` | GET | Tenant-specific KPIs |
+| `/api/tenants/{id}/production` | GET | Tenant production data |
+| `/api/tenants/{id}/production/submit` | POST | Submit tenant production data |
+| `/api/corporate/summary` | GET | Cross-tenant aggregated summary |
 | `/api/reports/latest` | GET | Download latest PDF |
 | `/api/websocket/status` | GET | WebSocket connection status |
 
-### 7.2 Query Parameters
+### 8.2 Query Parameters
 * `days`: Number of days for historical data (default: 7)
 * `machine_id`: Filter by specific machine (optional)
 
-## 8. Automated Reporting
+## 9. Automated Reporting
 
-### 8.1 Schedule
+### 9.1 Schedule
 * **Daily Reports**: 08:00 AM automatic generation
 * **Immediate**: On container startup
 * **Manual**: `docker exec mfg_reporting_pipeline python main.py`
 
-### 8.2 Report Contents
+### 9.2 Report Contents
 * Performance summary KPIs
-* **Ensemble ML Predicted Downtime** with confidence
-* **AI Strategic Insights** (full analysis)
-* **AI Maintenance Recommendations**
-* **AI Quality Improvement Plan**
+* Ensemble ML Predicted Downtime with confidence
+* LSTM/Prophet Time-Series Forecasts (7-30 days)
+* AI Strategic Insights (full analysis)
+* AI Maintenance Recommendations
+* AI Quality Improvement Plan
 * Production by shift charts
 * Downtime trend analysis
 * Machine comparison charts
-* **Advanced ML visualizations** (4 charts)
-* **Anomaly detection results**
+* Advanced ML visualizations (4 charts)
+* Forecasting visualizations with confidence intervals
+* Anomaly detection results
 
-### 8.3 Email Distribution
+### 9.3 Email Distribution
 PDF automatically emailed if SMTP configured in `.env`
 
-## 9. System Management
+## 10. System Management
 
-### 9.1 Commands
+### 10.1 Commands
 ```bash
 # Stop all services
 docker compose down
@@ -289,17 +428,21 @@ docker compose restart api-server
 docker logs -f mfg_api_server
 docker logs -f mfg_plc_sim
 
-# Manual report generation (with AI)
+# Manual report generation (with AI and forecasting)
 docker exec mfg_reporting_pipeline python main.py
 
 # Check AI insights file
 docker exec mfg_reporting_pipeline cat reports/ai_insights.txt
 
+# Test multi-tenant features
+curl http://localhost:8000/api/tenants/list
+curl http://localhost:8000/api/corporate/summary
+
 # Reset database (CAUTION)
 docker compose down -v
 ```
 
-### 9.2 Monitoring
+### 10.2 Monitoring
 ```bash
 # Check service health
 docker ps
@@ -313,13 +456,19 @@ curl http://localhost:8000/api/websocket/status
 # Test ML prediction
 curl http://localhost:8000/api/ml/forecast
 
+# Test advanced forecasting (requires TensorFlow and Prophet)
+curl http://localhost:8000/api/ml/forecast-advanced
+
 # Test AI insights (requires Groq API key)
 curl http://localhost:8000/api/ai/insights
+
+# Test tenant features
+curl http://localhost:8000/api/tenants/list
 ```
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
-### 10.1 Common Issues
+### 11.1 Common Issues
 
 **Dashboard Not Loading**
 ```bash
@@ -335,16 +484,29 @@ curl http://localhost:8000/api/websocket/status
 # Clear browser cache (Ctrl+Shift+Delete)
 ```
 
-**ML/AI Features Not Working**
+**ML/AI/Forecasting Features Not Working**
 ```bash
 # Check if advanced ML loaded
 docker logs mfg_api_server | grep "Advanced ML"
 
+# Check forecasting availability
+docker logs mfg_reporting_pipeline | grep "forecasting"
+
 # Verify dependencies
-docker exec mfg_api_server pip list | grep -E "xgboost|aiohttp"
+docker exec mfg_api_server pip list | grep -E "xgboost|tensorflow|prophet"
 
 # Check AI API key
 docker exec mfg_api_server printenv | grep GROQ
+```
+
+**Multi-Tenant Features Not Working**
+```bash
+# Check tenant manager initialization
+docker logs mfg_api_server | grep -i tenant
+
+# Verify database tables
+docker exec mfg_postgres psql -U mfg_user -d manufacturing \
+  -c "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'tenant%';"
 ```
 
 **Database Connection Failed**
@@ -359,13 +521,13 @@ docker compose restart db
 docker logs mfg_reporting_pipeline | grep "Insufficient data"
 ```
 
-### 10.2 Complete Reset
+### 11.2 Complete Reset
 ```bash
 docker compose down -v --rmi all
 docker compose up -d --build
 ```
 
-## 11. Performance Tuning
+## 12. Performance Tuning
 
 **WebSocket Update Frequency** (`api_server.py`):
 ```python
@@ -375,6 +537,11 @@ await asyncio.sleep(5)  # Adjust to 10 for less frequent updates
 **ML Training Data Window** (API call):
 ```bash
 curl http://localhost:8000/api/ml/forecast?days=60  # More historical data
+```
+
+**Forecasting Parameters** (API call):
+```bash
+curl http://localhost:8000/api/ml/forecast-advanced?days=30  # Longer forecast horizon
 ```
 
 **AI Response Length** (`ai_insights.py`):
@@ -387,7 +554,12 @@ curl http://localhost:8000/api/ml/forecast?days=60  # More historical data
 engine = create_engine(..., pool_size=10, max_overflow=20)
 ```
 
-## 12. Security Considerations
+**Tenant Query Optimization** (`tenant_manager.py`):
+```python
+# Use indexed queries and limit result sets
+```
+
+## 13. Security Considerations
 
 **Production Deployment:**
 - Use reverse proxy (nginx/Caddy) with TLS for ports 8000/8080
@@ -396,38 +568,39 @@ engine = create_engine(..., pool_size=10, max_overflow=20)
 - Use Docker secrets instead of `.env` for sensitive data
 - Rotate Groq API keys regularly
 - Implement rate limiting on AI endpoints
+- Validate tenant IDs in all multi-tenant endpoints
+- Use row-level security for tenant data isolation
+- Audit log all cross-tenant queries
 
-## 13. Future Enhancements
+## 14. Future Enhancements
 
 ### Implemented 
 - [x] OPC-UA integration with live PLCs
 - [x] PostgreSQL persistence
 - [x] Real-time WebSocket dashboard
 - [x] RESTful API
-- [x] **Ensemble ML predictive maintenance (RF + XGBoost)**
-- [x] **Anomaly detection (Isolation Forest)**
-- [x] **AI-powered strategic insights (Groq API)**
-- [x] **AI maintenance planning**
-- [x] **AI quality analysis**
+- [x] Ensemble ML predictive maintenance (RF + XGBoost)
+- [x] Anomaly detection (Isolation Forest)
+- [x] AI-powered strategic insights (Groq API)
+- [x] AI maintenance planning
+- [x] AI quality analysis
+- [x] LSTM/Prophet time-series forecasting
+- [x] Multi-tenant data isolation
+- [x] Tenant management API
+- [x] Corporate cross-tenant analytics
 
 ### Planned 
-- [ ] LSTM/Prophet for time-series forecasting
-- [ ] Multi-plant support with tenant isolation
-- [ ] Grafana dashboards
-- [ ] Alerting system (Slack/Teams)
-- [ ] Role-based access control (RBAC)
-- [ ] Kubernetes deployment
-- [ ] Custom AI model fine-tuning
-- [ ] Real-time anomaly alerts
+- [ ] Grafana dashboards with tenant filtering
 
 ### Scalability Roadmap
-- Horizontal scaling for multiple plants
-- Redis caching for KPIs and ML predictions
-- Apache Kafka for event streaming
-- TimescaleDB for time-series optimization
-- Model versioning and A/B testing
+- Horizontal scaling for multiple plants with tenant sharding
+- Redis caching for KPIs, ML predictions, and tenant metadata
+- Apache Kafka for event streaming with tenant partitioning
+- TimescaleDB for time-series optimization per tenant
+- Model versioning and A/B testing per tenant
+- Distributed forecasting for high-volume tenants
 
-## 14. Architecture Diagram
+## 15. Architecture Diagram
 
 ```
 ┌──────────────────┐ Port 4840 (OPC-UA)
@@ -440,12 +613,14 @@ engine = create_engine(..., pool_size=10, max_overflow=20)
     │ (mfg_network)        │
     └────┬─────────────────┘
          │
-    ┌────▼─────────┐   ┌─────────────────┐
-    │ PostgreSQL   │◄──┤ API Server      │ Port 8000
-    │ Port 5432    │   │ FastAPI         │ (REST + WS)
-    └──────────────┘   │ + ML Engine     │ (ML + AI)
-                       │ + AI Engine     │
-                       └──────┬──────────┘
+    ┌────▼─────────┐   ┌─────────────────────┐
+    │ PostgreSQL   │◄──┤ API Server          │ Port 8000
+    │ Port 5432    │   │ FastAPI             │ (REST + WS)
+    │ Multi-Tenant │   │ + ML Engine         │ (ML + AI)
+    │ Schemas      │   │ + AI Engine         │ + Multi-Tenant
+    └──────────────┘   │ + Forecasting       │ + Forecasting
+                       │ + Tenant Manager    │
+                       └──────┬──────────────┘
                               │
                        ┌──────▼──────────┐
                        │ Dashboard       │ Port 8080
@@ -458,10 +633,12 @@ engine = create_engine(..., pool_size=10, max_overflow=20)
                        └─────────────────┘
 ```
 
-## 15. Getting Started Without AI (Optional)
+## 16. Getting Started Without AI (Optional)
 
 If you don't have a Groq API key, the system will work perfectly without AI features:
 - All ML predictions still function (ensemble models, anomaly detection)
+- Time-series forecasting available (LSTM/Prophet)
+- Multi-tenant features fully functional
 - Basic rule-based insights are generated as fallback
 - Dashboard and reporting continue normally
 
@@ -469,3 +646,8 @@ To add AI later, simply add `GROQ_API_KEY` to `.env` and restart:
 ```bash
 docker compose restart api-server reporting-app
 ```
+
+For forecasting without TensorFlow/Prophet (lighter deployment):
+- Basic ensemble ML still works
+- Simple linear forecasting used as fallback
+- All other features remain available
