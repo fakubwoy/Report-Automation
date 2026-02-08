@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, BackgroundTasks, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy import create_engine, text
@@ -27,6 +27,15 @@ except ImportError:
     except ImportError:
         logging.error("No ML engine available")
         ADVANCED_ML_AVAILABLE = False
+
+# Import tenant manager
+try:
+    from src.tenant_manager import get_tenant_manager
+    TENANT_SUPPORT = True
+    logging.info("Tenant management available")
+except ImportError:
+    TENANT_SUPPORT = False
+    logging.warning("Tenant management not available")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -143,7 +152,7 @@ async def lifespan(app: FastAPI):
     logging.info("Shutting down FastAPI application...")
     task.cancel()
 
-app = FastAPI(title="Manufacturing Analytics API", version="2.1.0", lifespan=lifespan)
+app = FastAPI(title="Manufacturing Analytics API", version="2.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -152,6 +161,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============================================================================
+# PYDANTIC MODELS
+# ============================================================================
 
 class ProductionRecord(BaseModel):
     production_date: str
@@ -174,6 +187,34 @@ class MachineStats(BaseModel):
     defective_units: float
     downtime_minutes: float
 
+# Multi-tenant Pydantic models
+class TenantCreate(BaseModel):
+    tenant_id: str
+    tenant_name: str
+    plant_location: Optional[str] = None
+    timezone: str = "UTC"
+    config: Optional[dict] = {}
+
+class MachineRegister(BaseModel):
+    machine_id: str
+    machine_name: str
+    machine_type: Optional[str] = None
+    capacity: Optional[float] = None
+
+class UserAccess(BaseModel):
+    user_id: str
+    user_name: str
+    user_email: str
+    role: str = "viewer"
+
+class ProductionDataSubmit(BaseModel):
+    production_date: str
+    machine_id: str
+    units_produced: float
+    defective_units: float
+    downtime_min: float
+    shift: str
+
 def get_db():
     db = SessionLocal()
     try:
@@ -181,14 +222,25 @@ def get_db():
     finally:
         db.close()
 
-# --- ROUTES ---
+# Dependency to extract tenant from header
+def get_tenant_id(x_tenant_id: Optional[str] = Header(None)) -> str:
+    """Extract tenant ID from request header"""
+    if not x_tenant_id:
+        raise HTTPException(status_code=400, detail="Missing X-Tenant-ID header")
+    return x_tenant_id
+
+# ============================================================================
+# STANDARD ENDPOINTS
+# ============================================================================
 
 @app.get("/")
 async def root():
     return {
         "service": "Manufacturing Analytics API",
         "status": "operational",
-        "endpoints": ["/api/production", "/api/kpis", "/api/machines", "/ws"]
+        "version": "2.2.0",
+        "tenant_support": TENANT_SUPPORT,
+        "endpoints": ["/api/production", "/api/kpis", "/api/machines", "/api/tenants", "/ws"]
     }
 
 @app.get("/api/health")
@@ -196,9 +248,41 @@ async def health_check():
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        return {"status": "healthy", "database": "connected"}
+        return {"status": "healthy", "database": "connected", "tenant_support": TENANT_SUPPORT}
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database unavailable: {str(e)}")
+
+@app.get("/api/diagnostics")
+async def diagnostics():
+    """Diagnostic endpoint to check system status"""
+    diag = {
+        "tenant_support": TENANT_SUPPORT,
+        "advanced_ml": ADVANCED_ML_AVAILABLE,
+        "database": "unknown",
+        "tenant_tables": {}
+    }
+    
+    try:
+        with engine.connect() as conn:
+            # Check database connection
+            conn.execute(text("SELECT 1"))
+            diag["database"] = "connected"
+            
+            # Check if tenant tables exist
+            tables_to_check = ['tenants', 'production_data_tenant', 'machines_tenant', 'users_tenant']
+            for table in tables_to_check:
+                result = conn.execute(text(f"""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_name = '{table}'
+                    )
+                """))
+                diag["tenant_tables"][table] = result.scalar()
+    except Exception as e:
+        diag["database_error"] = str(e)
+    
+    return diag
+
 @app.get("/api/additional/metrics")
 async def get_additional_metrics(days: int = 7):
     """Get additional metrics like energy consumption and cycle time"""
@@ -218,30 +302,30 @@ async def get_additional_metrics(days: int = 7):
         total_units = int(df['total_units'].iloc[0]) if df['total_units'].iloc[0] else 0
         total_downtime = float(df['total_downtime'].iloc[0]) if df['total_downtime'].iloc[0] else 0
         
-        # Calculate derived metrics (you can adjust these formulas)
-        # Energy consumption estimate: ~10 kWh per unit produced
-        energy_consumption_kwh = total_units * 10
+        # Calculate or estimate other metrics
+        # Energy consumption: estimate 0.5 kWh per unit produced
+        energy_consumption = round(total_units * 0.5, 2)
         
-        # Average cycle time estimate: 4.2 minutes per unit (adjustable)
-        avg_cycle_time = 4.2
+        # Average cycle time: estimate based on units and downtime
+        # Assume 8 hour shifts, 7 days
+        available_time = (days * 24 * 60) - total_downtime  # minutes
+        avg_cycle_time = round(available_time / total_units, 2) if total_units > 0 else 0
         
         return {
-            "energy_consumption_kwh": energy_consumption_kwh,
-            "avg_cycle_time": avg_cycle_time,
+            "energy_consumption_kwh": energy_consumption,
+            "avg_cycle_time_min": avg_cycle_time,
             "total_units": total_units,
-            "total_downtime": total_downtime,
-            "estimated_metrics": True  # Flag to indicate these are estimates
+            "days_analyzed": days
         }
     except Exception as e:
         logging.error(f"Additional metrics error: {e}")
         return {
-            "energy_consumption_kwh": 12500,
-            "avg_cycle_time": 4.2,
-            "error": str(e),
-            "estimated_metrics": True
+            "energy_consumption_kwh": 0,
+            "avg_cycle_time_min": 0,
+            "error": str(e)
         }
-        
-@app.get("/api/production", response_model=List[ProductionRecord])
+
+@app.get("/api/production")
 async def get_production_data(days: int = 7, machine_id: Optional[str] = None):
     try:
         query = f"SELECT * FROM live_production WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'"
@@ -253,6 +337,27 @@ async def get_production_data(days: int = 7, machine_id: Optional[str] = None):
         if 'production_date' in df.columns:
             df['production_date'] = df['production_date'].astype(str)
         return df.to_dict('records')
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/production")
+async def add_production_record(record: ProductionRecord):
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("""
+                INSERT INTO live_production 
+                (production_date, machine_id, units_produced, defective_units, downtime_min, shift)
+                VALUES (:date, :machine, :units, :defects, :downtime, :shift)
+            """), {
+                'date': record.production_date,
+                'machine': record.machine_id,
+                'units': record.units_produced,
+                'defects': record.defective_units,
+                'downtime': record.downtime_min,
+                'shift': record.shift
+            })
+            conn.commit()
+        return {"status": "success", "message": "Record added"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -296,7 +401,7 @@ async def get_kpis(days: int = 7):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/machines", response_model=List[MachineStats])
+@app.get("/api/machines")
 async def get_machine_stats(days: int = 7):
     try:
         query = f"""
@@ -384,16 +489,11 @@ async def get_ml_forecast(days: int = 30):
         }
 
 @app.get("/api/ai/insights")
-async def get_ai_insights_endpoint(days: int = 7):
-    """
-    NEW: Get comprehensive AI-powered strategic insights
-    """
+async def get_ai_insights(days: int = 7):
+    """Get AI-powered strategic insights"""
     try:
         if not ADVANCED_ML_AVAILABLE:
-            return {
-                "error": "Advanced AI features not available",
-                "message": "Install required packages: aiohttp, xgboost"
-            }
+            return {"error": "AI features not available"}
         
         # Get production data
         query = f"""
@@ -405,6 +505,9 @@ async def get_ai_insights_endpoint(days: int = 7):
             WHERE production_date >= CURRENT_DATE - INTERVAL '{days} days'
         """
         df = pd.read_sql_query(query, engine)
+        
+        if len(df) < 5:
+            return {"error": "Insufficient data for AI analysis"}
         
         # Get KPIs
         kpi_query = f"""
@@ -419,12 +522,13 @@ async def get_ai_insights_endpoint(days: int = 7):
         total_units = int(kpi_df['total_units'].iloc[0]) if kpi_df['total_units'].iloc[0] else 0
         total_defects = int(kpi_df['total_defects'].iloc[0]) if kpi_df['total_defects'].iloc[0] else 0
         yield_pct = ((total_units - total_defects) / total_units * 100) if total_units > 0 else 0
+        avg_downtime = float(kpi_df['avg_downtime'].iloc[0]) if kpi_df['avg_downtime'].iloc[0] else 0
         
         kpi_summary = {
             'total_units': total_units,
             'total_defects': total_defects,
-            'yield_percentage': round(yield_pct, 2),
-            'avg_downtime': float(kpi_df['avg_downtime'].iloc[0]) if kpi_df['avg_downtime'].iloc[0] else 0
+            'yield_percentage': yield_pct,
+            'avg_downtime': avg_downtime
         }
         
         # Get machine stats
@@ -645,6 +749,422 @@ async def websocket_endpoint(websocket: WebSocket):
             manager.disconnect(websocket)
         except:
             pass
+
+# ============================================================================
+# MULTI-TENANT ENDPOINTS
+# ============================================================================
+
+@app.post("/api/tenants/create")
+async def create_tenant(tenant: TenantCreate):
+    """
+    Create a new tenant (plant/factory)
+    
+    Example:
+    ```
+    POST /api/tenants/create
+    {
+        "tenant_id": "plant_chicago",
+        "tenant_name": "Chicago Manufacturing Plant",
+        "plant_location": "Chicago, IL, USA",
+        "timezone": "America/Chicago"
+    }
+    ```
+    """
+    if not TENANT_SUPPORT:
+        return {
+            "status": "error",
+            "message": "Tenant management not enabled. Please ensure tenant_manager.py is in the src/ directory.",
+            "tenant_support": False
+        }
+    
+    try:
+        tm = get_tenant_manager()
+        
+        # Validate tenant_id
+        if not tenant.tenant_id or len(tenant.tenant_id) < 3:
+            raise HTTPException(status_code=400, detail="tenant_id must be at least 3 characters")
+        
+        success = tm.create_tenant(
+            tenant.tenant_id,
+            tenant.tenant_name,
+            tenant.plant_location,
+            tenant.timezone,
+            tenant.config
+        )
+        
+        if success:
+            return {"status": "success", "tenant_id": tenant.tenant_id, "message": "Tenant created successfully"}
+        else:
+            raise HTTPException(status_code=500, detail="Tenant creation failed - check database connection")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Tenant creation error: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "message": f"Failed to create tenant: {str(e)}",
+            "error_type": type(e).__name__
+        }
+
+
+@app.get("/api/tenants/list")
+async def list_tenants(active_only: bool = True):
+    """
+    Get list of all tenants
+    
+    Example:
+    ```
+    GET /api/tenants/list?active_only=true
+    ```
+    """
+    if not TENANT_SUPPORT:
+        raise HTTPException(status_code=501, detail="Tenant management not enabled")
+    
+    try:
+        tm = get_tenant_manager()
+        tenants = tm.get_tenant_list(active_only)
+        
+        # Serialize datetime objects
+        for tenant in tenants:
+            for key, value in tenant.items():
+                if isinstance(value, (date, datetime)):
+                    tenant[key] = value.isoformat()
+        
+        return {"tenants": tenants, "count": len(tenants)}
+        
+    except Exception as e:
+        logging.error(f"List tenants error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/tenants/{tenant_id}/machines/register")
+async def register_machine(tenant_id: str, machine: MachineRegister):
+    """
+    Register a machine for a tenant
+    
+    Example:
+    ```
+    POST /api/tenants/plant_chicago/machines/register
+    {
+        "machine_id": "M001",
+        "machine_name": "Assembly Line 1",
+        "machine_type": "Assembly",
+        "capacity": 500
+    }
+    ```
+    """
+    if not TENANT_SUPPORT:
+        raise HTTPException(status_code=501, detail="Tenant management not enabled")
+    
+    try:
+        tm = get_tenant_manager()
+        success = tm.register_machine(
+            tenant_id,
+            machine.machine_id,
+            machine.machine_name,
+            machine.machine_type,
+            machine.capacity
+        )
+        
+        if success:
+            return {"status": "success", "machine_id": machine.machine_id}
+        else:
+            raise HTTPException(status_code=500, detail="Machine registration failed")
+            
+    except Exception as e:
+        logging.error(f"Machine registration error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tenants/{tenant_id}/machines")
+async def get_tenant_machines(tenant_id: str, active_only: bool = True):
+    """
+    Get all machines for a tenant
+    
+    Example:
+    ```
+    GET /api/tenants/plant_chicago/machines?active_only=true
+    ```
+    """
+    if not TENANT_SUPPORT:
+        raise HTTPException(status_code=501, detail="Tenant management not enabled")
+    
+    try:
+        tm = get_tenant_manager()
+        machines = tm.get_tenant_machines(tenant_id, active_only)
+        
+        # Serialize datetime objects
+        for machine in machines:
+            for key, value in machine.items():
+                if isinstance(value, (date, datetime)):
+                    machine[key] = value.isoformat()
+        
+        return {"tenant_id": tenant_id, "machines": machines, "count": len(machines)}
+        
+    except Exception as e:
+        logging.error(f"Get tenant machines error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/tenants/{tenant_id}/production/submit")
+async def submit_production_data(tenant_id: str, data: List[ProductionDataSubmit]):
+    """
+    Submit production data for a tenant
+    
+    Example:
+    ```
+    POST /api/tenants/plant_chicago/production/submit
+    [
+        {
+            "production_date": "2026-02-07",
+            "machine_id": "M001",
+            "units_produced": 450,
+            "defective_units": 5,
+            "downtime_min": 15,
+            "shift": "Day"
+        }
+    ]
+    ```
+    """
+    if not TENANT_SUPPORT:
+        raise HTTPException(status_code=501, detail="Tenant management not enabled")
+    
+    try:
+        tm = get_tenant_manager()
+        
+        # Convert to list of dicts
+        records = [record.dict() for record in data]
+        
+        success = tm.add_production_data(tenant_id, records)
+        
+        if success:
+            return {"status": "success", "records_added": len(records)}
+        else:
+            raise HTTPException(status_code=500, detail="Data submission failed")
+            
+    except Exception as e:
+        logging.error(f"Submit production data error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tenants/{tenant_id}/production")
+async def get_tenant_production(tenant_id: str, days: int = 7, machine_id: Optional[str] = None):
+    """
+    Get production data for a tenant (isolated)
+    
+    Example:
+    ```
+    GET /api/tenants/plant_chicago/production?days=7&machine_id=M001
+    ```
+    """
+    if not TENANT_SUPPORT:
+        raise HTTPException(status_code=501, detail="Tenant management not enabled")
+    
+    try:
+        tm = get_tenant_manager()
+        df = tm.get_production_data(tenant_id, days, machine_id)
+        
+        # Convert to JSON-serializable format
+        data = df.to_dict('records')
+        
+        # Handle date serialization
+        for record in data:
+            if 'production_date' in record and isinstance(record['production_date'], date):
+                record['production_date'] = record['production_date'].isoformat()
+        
+        return {
+            "tenant_id": tenant_id,
+            "data": data,
+            "count": len(data)
+        }
+        
+    except Exception as e:
+        logging.error(f"Get tenant production error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/tenants/{tenant_id}/kpis")
+async def get_tenant_kpis(tenant_id: str, days: int = 7):
+    """
+    Get KPIs for a specific tenant
+    
+    Example:
+    ```
+    GET /api/tenants/plant_chicago/kpis?days=7
+    ```
+    """
+    if not TENANT_SUPPORT:
+        raise HTTPException(status_code=501, detail="Tenant management not enabled")
+    
+    try:
+        tm = get_tenant_manager()
+        df = tm.get_production_data(tenant_id, days)
+        
+        if df.empty:
+            return {
+                "tenant_id": tenant_id,
+                "message": "No data available",
+                "kpis": {}
+            }
+        
+        # Rename columns to match KPI engine expectations
+        df_renamed = df.rename(columns={
+            'units_produced': 'Units Produced',
+            'defective_units': 'Defective Units',
+            'downtime_min': 'Downtime (minutes)',
+            'machine_id': 'Machine ID'
+        })
+        
+        from src.kpi_engine import calculate_kpis
+        summary, machine_stats = calculate_kpis(df_renamed)
+        
+        # Convert machine_stats to dict if it's a DataFrame
+        if hasattr(machine_stats, 'to_dict'):
+            machine_stats_data = machine_stats.to_dict('records')
+        else:
+            machine_stats_data = machine_stats
+        
+        return {
+            "tenant_id": tenant_id,
+            "kpis": summary,
+            "machine_stats": machine_stats_data
+        }
+        
+    except Exception as e:
+        logging.error(f"Get tenant KPIs error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/corporate/summary")
+async def get_corporate_summary(days: int = 7):
+    """
+    Get aggregated summary across all tenants (corporate overview)
+    
+    Example:
+    ```
+    GET /api/corporate/summary?days=7
+    ```
+    """
+    if not TENANT_SUPPORT:
+        raise HTTPException(status_code=501, detail="Tenant management not enabled")
+    
+    try:
+        tm = get_tenant_manager()
+        df = tm.get_cross_tenant_summary(days)
+        
+        summary_data = df.to_dict('records')
+        
+        return {
+            "summary": summary_data,
+            "total_tenants": len(summary_data),
+            "period_days": days
+        }
+        
+    except Exception as e:
+        logging.error(f"Corporate summary error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/tenants/{tenant_id}/users/grant-access")
+async def grant_user_access(tenant_id: str, user: UserAccess):
+    """
+    Grant user access to a tenant
+    
+    Example:
+    ```
+    POST /api/tenants/plant_chicago/users/grant-access
+    {
+        "user_id": "john_doe",
+        "user_name": "John Doe",
+        "user_email": "john@company.com",
+        "role": "manager"
+    }
+    ```
+    """
+    if not TENANT_SUPPORT:
+        raise HTTPException(status_code=501, detail="Tenant management not enabled")
+    
+    try:
+        tm = get_tenant_manager()
+        success = tm.grant_user_access(
+            user.user_id,
+            tenant_id,
+            user.user_name,
+            user.user_email,
+            user.role
+        )
+        
+        if success:
+            return {"status": "success", "user_id": user.user_id, "tenant_id": tenant_id}
+        else:
+            raise HTTPException(status_code=500, detail="User access grant failed")
+            
+    except Exception as e:
+        logging.error(f"Grant user access error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/users/{user_id}/tenants")
+async def get_user_tenants(user_id: str):
+    """
+    Get all tenants a user has access to
+    
+    Example:
+    ```
+    GET /api/users/john_doe/tenants
+    ```
+    """
+    if not TENANT_SUPPORT:
+        raise HTTPException(status_code=501, detail="Tenant management not enabled")
+    
+    try:
+        tm = get_tenant_manager()
+        tenants = tm.get_user_tenants(user_id)
+        
+        # Serialize datetime objects
+        for tenant in tenants:
+            for key, value in tenant.items():
+                if isinstance(value, (date, datetime)):
+                    tenant[key] = value.isoformat()
+        
+        return {
+            "user_id": user_id,
+            "tenants": tenants,
+            "count": len(tenants)
+        }
+        
+    except Exception as e:
+        logging.error(f"Get user tenants error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/tenants/{tenant_id}/migrate-legacy-data")
+async def migrate_legacy_data(tenant_id: str):
+    """
+    Migrate legacy data from live_production table to tenant-isolated table
+    
+    Example:
+    ```
+    POST /api/tenants/plant_chicago/migrate-legacy-data
+    ```
+    """
+    if not TENANT_SUPPORT:
+        raise HTTPException(status_code=501, detail="Tenant management not enabled")
+    
+    try:
+        tm = get_tenant_manager()
+        success = tm.migrate_legacy_data(tenant_id)
+        
+        if success:
+            return {"status": "success", "message": f"Legacy data migrated to tenant {tenant_id}"}
+        else:
+            raise HTTPException(status_code=500, detail="Migration failed")
+            
+    except Exception as e:
+        logging.error(f"Migrate legacy data error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == "__main__":
     import uvicorn

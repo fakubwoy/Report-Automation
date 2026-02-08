@@ -1,5 +1,6 @@
 import pandas as pd
 import logging
+import json
 from sqlalchemy import create_engine, text, MetaData, Table, Column, String, Integer, Float, Date, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime, date
@@ -146,30 +147,36 @@ class TenantManager:
         """
         try:
             with self.engine.connect() as conn:
+                # FIXED: Properly convert config to JSON string
                 config_json = config if config else {}
+                config_str = json.dumps(config_json)  # Use json.dumps instead of str()
                 
+                logging.info(f"Creating tenant: {tenant_id} with config: {config_str}")
+                
+                # CRITICAL FIX: Use CAST instead of :: for proper parameter binding
                 conn.execute(text("""
                     INSERT INTO tenants (tenant_id, tenant_name, plant_location, timezone, config)
-                    VALUES (:tenant_id, :tenant_name, :plant_location, :timezone, :config::jsonb)
+                    VALUES (:tenant_id, :tenant_name, :plant_location, :timezone, CAST(:config AS jsonb))
                     ON CONFLICT (tenant_id) DO UPDATE 
                     SET tenant_name = :tenant_name, 
                         plant_location = :plant_location,
                         timezone = :timezone,
+                        config = CAST(:config AS jsonb),
                         updated_at = CURRENT_TIMESTAMP
                 """), {
                     'tenant_id': tenant_id,
                     'tenant_name': tenant_name,
                     'plant_location': plant_location,
                     'timezone': timezone,
-                    'config': str(config_json).replace("'", '"')
+                    'config': config_str
                 })
                 
                 conn.commit()
-                logging.info(f"Tenant created/updated: {tenant_id} - {tenant_name}")
+                logging.info(f"✅ Tenant created/updated successfully: {tenant_id} - {tenant_name}")
                 return True
                 
         except Exception as e:
-            logging.error(f"Tenant creation failed: {e}")
+            logging.error(f"❌ Tenant creation failed for {tenant_id}: {e}", exc_info=True)
             return False
     
     def get_tenant_list(self, active_only: bool = True) -> List[Dict]:
@@ -201,7 +208,7 @@ class TenantManager:
     
     def add_production_data(self, tenant_id: str, production_data: List[Dict]) -> bool:
         """
-        Add production data for a specific tenant with isolation
+        Add production data for a tenant
         
         Args:
             tenant_id: Tenant identifier
@@ -212,28 +219,27 @@ class TenantManager:
         """
         try:
             if not production_data:
+                logging.warning("No production data to add")
                 return True
             
-            # Add tenant_id to each record
-            for record in production_data:
-                record['tenant_id'] = tenant_id
-            
+            # Convert to DataFrame for easier manipulation
             df = pd.DataFrame(production_data)
+            df['tenant_id'] = tenant_id
             
-            # Ensure required columns
-            required_cols = ['tenant_id', 'production_date', 'machine_id', 
-                           'units_produced', 'defective_units', 'downtime_min', 'shift']
+            # Ensure required columns exist
+            required_cols = ['production_date', 'machine_id', 'units_produced', 
+                           'defective_units', 'downtime_min', 'shift']
             
-            if not all(col in df.columns for col in required_cols):
-                logging.error(f"Missing required columns. Need: {required_cols}")
-                return False
+            for col in required_cols:
+                if col not in df.columns:
+                    raise ValueError(f"Missing required column: {col}")
             
-            # Insert to tenant-isolated table
+            # Write to database
             with self.engine.connect() as conn:
                 df.to_sql('production_data_tenant', conn, if_exists='append', index=False)
                 conn.commit()
-                
-            logging.info(f"Added {len(production_data)} records for tenant {tenant_id}")
+            
+            logging.info(f"Added {len(df)} production records for tenant {tenant_id}")
             return True
             
         except Exception as e:
@@ -241,14 +247,14 @@ class TenantManager:
             return False
     
     def get_production_data(self, tenant_id: str, days: int = 7, 
-                           machine_id: Optional[str] = None) -> pd.DataFrame:
+                           machine_id: str = None) -> pd.DataFrame:
         """
-        Retrieve production data for a specific tenant (isolated)
+        Get production data for a tenant
         
         Args:
             tenant_id: Tenant identifier
             days: Number of days of history
-            machine_id: Optional filter by machine
+            machine_id: Optional machine filter
             
         Returns:
             DataFrame with production data
@@ -256,7 +262,7 @@ class TenantManager:
         try:
             query = f"""
                 SELECT production_date, machine_id, units_produced, 
-                       defective_units, downtime_min, shift, created_at
+                       defective_units, downtime_min, shift
                 FROM production_data_tenant
                 WHERE tenant_id = :tenant_id
                 AND production_date >= CURRENT_DATE - INTERVAL '{days} days'
@@ -287,10 +293,10 @@ class TenantManager:
         
         Args:
             tenant_id: Tenant identifier
-            machine_id: Machine identifier (unique within tenant)
-            machine_name: Display name
+            machine_id: Machine identifier
+            machine_name: Machine display name
             machine_type: Type of machine
-            capacity: Production capacity (units/hour)
+            capacity: Capacity in units per hour
             
         Returns:
             Success boolean
@@ -318,7 +324,7 @@ class TenantManager:
                 return True
                 
         except Exception as e:
-            logging.error(f"Machine registration failed: {e}")
+            logging.error(f"Failed to register machine: {e}")
             return False
     
     def get_tenant_machines(self, tenant_id: str, active_only: bool = True) -> List[Dict]:
